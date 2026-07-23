@@ -1,0 +1,22 @@
+[
+  {"level": "A1", "category": "Grammar", "topic": "Present simple tense"},
+  {"level": "A1", "category": "Vocabulary", "topic": "Daily routine words"},
+  {"level": "A1", "category": "Grammar", "topic": "Present continuous tense"},
+  {"level": "A1", "category": "Vocabulary", "topic": "Food and restaurant vocabulary"},
+  {"level": "A1", "category": "Grammar", "topic": "Past simple tense"},
+  {"level": "A2", "category": "Idioms", "topic": "Common everyday idioms"},
+  {"level": "A2", "category": "Grammar", "topic": "Future with will and going to"},
+  {"level": "A2", "category": "Vocabulary", "topic": "Travel vocabulary"},
+  {"level": "A2", "category": "Common mistakes", "topic": "Say vs tell"},
+  {"level": "A2", "category": "Grammar", "topic": "Comparatives and superlatives"},
+  {"level": "B1", "category": "Grammar", "topic": "Present perfect tense"},
+  {"level": "B1", "category": "Conversation", "topic": "Ordering food in English"},
+  {"level": "B1", "category": "Common mistakes", "topic": "Make vs do"},
+  {"level": "B1", "category": "Grammar", "topic": "First conditional"},
+  {"level": "B1", "category": "Pronunciation", "topic": "Silent letters"},
+  {"level": "B1", "category": "Grammar", "topic": "Second conditional"},
+  {"level": "B2", "category": "Idioms", "topic": "Business idioms"},
+  {"level": "B2", "category": "Grammar", "topic": "Passive voice"},
+  {"level": "B2", "category": "Conversation", "topic": "Small talk phrases"},
+  {"level": "B2", "category": "Common mistakes", "topic": "Affect vs effect"}
+]
