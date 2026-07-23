@@ -9,7 +9,7 @@ from database import (
     save_post, search_related_posts, count_posts, get_titles_for_recap, get_recent_posts,
 )
 from memory import load_json, save_json
-from ai import generate_content, generate_json, review_content
+from ai import generate_content, generate_json, review_content, find_stray_script_chars
 from prompts import (
     FORMATS, build_generation_prompt, build_review_prompt, build_poll_prompt,
     build_scene_prompt, compose_image_prompt,
@@ -51,13 +51,30 @@ def generate_reviewed_text(memory, strategy, related, topic, format_name,
         )
         return generate_content(prompt)
 
+    def _needs_retry(text, review):
+        return not review.get("ok", True) or bool(find_stray_script_chars(text))
+
     content = _draft()
     review = review_content(build_review_prompt(content, format_name))
     attempts = 0
-    while not review.get("ok", True) and attempts < MAX_REVIEW_ATTEMPTS:
-        content = _draft(extra_note=review.get("feedback", ""))
+    while _needs_retry(content, review) and attempts < MAX_REVIEW_ATTEMPTS:
+        stray = find_stray_script_chars(content)
+        note = review.get("feedback", "") or ""
+        if stray:
+            note = (note + " " if note else "") + (
+                "متن قبلی چند کاراکتر عجیب و نامربوط داشت (نه فارسی، نه انگلیسی، نه اموجی معمولی: "
+                + " ".join(stray) + "). دوباره بنویس و فقط از حروف فارسی، انگلیسی، و اموجی معمولی استفاده کن."
+            )
+        content = _draft(extra_note=note)
         review = review_content(build_review_prompt(content, format_name))
         attempts += 1
+
+    # Last resort: if retries are exhausted and stray characters are still
+    # present, strip them rather than publish a glitched post.
+    stray = find_stray_script_chars(content)
+    if stray:
+        for ch in stray:
+            content = content.replace(ch, "")
     return content
 
 
