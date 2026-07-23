@@ -22,11 +22,14 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # Optional — leave the secret unset and this is just an empty string,
+          # which the code treats the same as "not configured".
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
 
       - name: Commit updated data
         run: |
           git config user.name "channel-bot"
           git config user.email "actions@github.com"
           git add data/
-          git diff --staged --quiet || git commit -m "Daily post: update memory and database"
+          git diff --staged --quiet || git commit -m "Daily post: update memory, story and database"
           git push

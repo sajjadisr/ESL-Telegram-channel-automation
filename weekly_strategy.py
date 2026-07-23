@@ -1,9 +1,11 @@
 import json
+
 from config import FEEDBACK_PATH, STRATEGY_PATH
 from database import get_recent_posts
 from memory import load_json, save_json
 from ai import generate_content
 from prompts import build_strategy_prompt
+
 
 def main():
     recent_posts = get_recent_posts(limit=15)
@@ -20,6 +22,7 @@ def main():
     except json.JSONDecodeError:
         print("پاسخ هوش مصنوعی قابل‌تفسیر نبود، استراتژی تغییر نکرد.")
         print(raw)
+
 
 if __name__ == "__main__":
     main()

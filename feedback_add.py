@@ -1,6 +1,8 @@
+import datetime
+
 from config import FEEDBACK_PATH
 from memory import load_json, save_json
-import datetime
+
 
 def add_feedback(post_title, notes):
     feedback_list = load_json(FEEDBACK_PATH, [])
@@ -11,6 +13,7 @@ def add_feedback(post_title, notes):
     })
     save_json(FEEDBACK_PATH, feedback_list)
     print("بازخورد ذخیره شد.")
+
 
 if __name__ == "__main__":
     title = input("عنوان پست: ")

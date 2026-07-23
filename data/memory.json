@@ -1,8 +1,29 @@
 {
-  "channel_identity": "کانال آموزش زبان انگلیسی برای فارسی‌زبانان",
-  "target_students": "فارسی‌زبانانی که انگلیسی یاد می‌گیرند",
-  "covered_topics": [],
-  "preferred_formats": ["درس کوتاه", "مثال عملی", "کوییز کوتاه"],
-  "avoid": ["توضیح خیلی آکادمیک", "پست خیلی طولانی"],
+  "channel_identity": "کانال آموزش زبان انگلیسی برای فارسی‌زبانان مبتدی (سطح A1-A2)",
+  "target_students": "فارسی‌زبانانی که تازه شروع به یادگیری انگلیسی کرده‌اند یا در سطح پایه هستند",
+  "covered_topics": [
+    "Present simple tense",
+    "Daily routine words",
+    "Present continuous tense",
+    "Food and restaurant vocabulary",
+    "Past simple tense",
+    "Family members",
+    "There is / there are",
+    "Numbers and time",
+    "Common everyday idioms",
+    "Future with will and going to",
+    "Travel vocabulary",
+    "Say vs tell",
+    "Comparatives and superlatives",
+    "Weather and seasons",
+    "Do vs make (basic uses)",
+    "Countable and uncountable nouns"
+  ],
+  "avoid": [
+    "توضیح خیلی آکادمیک یا رسمی",
+    "پست خیلی طولانی",
+    "اصطلاح یا گرامر سطح متوسط به بالا (B1 و بالاتر)",
+    "مثال گرامری خشک بدون قلاب/شوخی/تعامل"
+  ],
   "successful_patterns": []
 }
