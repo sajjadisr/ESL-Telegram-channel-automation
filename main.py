@@ -15,6 +15,7 @@ from prompts import (
     build_scene_prompt, compose_image_prompt,
 )
 from telegram_bot import send_message, send_poll, send_admin_image_prompt
+from channels import broadcast_extra_channels
 
 MAX_REVIEW_ATTEMPTS = 2
 
@@ -146,6 +147,7 @@ def main():
         content = generate_reviewed_text(memory, strategy, [], topic, format_name,
                                           recap_titles=recap_titles)
         send_message(content)
+        broadcast_extra_channels(content)
         save_post(date=str(datetime.date.today()), format_name=format_name,
                    category="Recap", level="-", title="Progress recap",
                    content=content, keywords="recap", status="published")
@@ -185,6 +187,7 @@ def main():
     else:
         content = generate_reviewed_text(memory, strategy, related, topic, format_name, story=story)
         send_message(content)
+        broadcast_extra_channels(content)
         status = "published"
 
         if format_name == "story_installment":

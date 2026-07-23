@@ -25,6 +25,12 @@ jobs:
           # Optional — leave the secret unset and this is just an empty string,
           # which the code treats the same as "not configured".
           TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+          # Also optional — set these to turn on Eitaa/Bale cross-posting.
+          # Leave a secret unset and that platform is silently skipped.
+          EITAA_TOKEN: ${{ secrets.EITAA_TOKEN }}
+          EITAA_CHANNEL_ID: ${{ secrets.EITAA_CHANNEL_ID }}
+          BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
+          BALE_CHAT_ID: ${{ secrets.BALE_CHAT_ID }}
 
       - name: Commit updated data
         run: |
