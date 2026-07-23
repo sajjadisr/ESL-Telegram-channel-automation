@@ -4,11 +4,32 @@ import google.generativeai as genai
 from config import GEMINI_API_KEY
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-3.5-flash")
+
+# Two tiers, used deliberately for different jobs:
+# - draft_model (flash-lite): every DRAFT generation call. Flash-lite has a
+#   much higher free-tier daily quota, and drafting is by far the highest-
+#   volume call in the pipeline — every post, every retry, every image-format
+#   scene sentence, and the weekly strategy update.
+# - review_model (flash): the smarter, low-quota (20/day free) tier, spent
+#   ONLY on the review/quality-gate pass and on poll/quiz content (which has
+#   no other review step before publishing). This is what actually catches
+#   language-leakage glitches and Persian-heavy drift — keeping it off the
+#   drafting path means the daily quota lasts through a normal day's runs
+#   instead of getting exhausted by mid-morning.
+draft_model = genai.GenerativeModel("gemini-3.5-flash-lite")
+review_model = genai.GenerativeModel("gemini-3.5-flash")
 
 
 def generate_content(prompt):
-    response = model.generate_content(prompt)
+    """Drafting calls. Cheap/high-quota tier — safe to call repeatedly."""
+    response = draft_model.generate_content(prompt)
+    return response.text.strip()
+
+
+def generate_content_smart(prompt):
+    """Review and poll/quiz calls. Smarter, low-quota tier — called far less
+    often than generate_content, by design, so the daily cap isn't hit."""
+    response = review_model.generate_content(prompt)
     return response.text.strip()
 
 
@@ -39,10 +60,11 @@ def find_stray_script_chars(text):
 
 
 def generate_json(prompt, fallback=None):
-    """Like generate_content, but strips ```json fences and parses the result.
-    Used for review_content, build_poll_prompt output, and the strategy step —
-    anywhere the model is asked to return JSON only."""
-    raw = generate_content(prompt)
+    """Like generate_content_smart, but strips ```json fences and parses the
+    result. Used for review_content and build_poll_prompt output — review is
+    the quality gate, and poll/quiz content has no other review pass before
+    publishing, so both deliberately use the smarter tier."""
+    raw = generate_content_smart(prompt)
     cleaned = raw.replace("```json", "").replace("```", "").strip()
     try:
         return json.loads(cleaned)
