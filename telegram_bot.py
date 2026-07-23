@@ -5,9 +5,6 @@ API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 
 def send_message(text, chat_id=None):
-    """Sends a regular post using HTML formatting (not Markdown) so that
-    <tg-spoiler> and <b> tags actually render — Markdown mode silently breaks
-    the spoiler-tag formats (guess-first, spot-the-mistake)."""
     url = f"{API_BASE}/sendMessage"
     if len(text) > 4000:
         text = text[:4000] + "..."
@@ -16,6 +13,8 @@ def send_message(text, chat_id=None):
         "text": text,
         "parse_mode": "HTML",
     })
+    if not response.ok:
+        print("Telegram API error response:", response.text)
     response.raise_for_status()
     return response.json()
 
