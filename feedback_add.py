@@ -10,6 +10,7 @@ def add_feedback(post_title, notes):
         "post_title": post_title,
         "notes": notes,
         "date": str(datetime.date.today()),
+        "source": "manual",
     })
     save_json(FEEDBACK_PATH, feedback_list)
     print("بازخورد ذخیره شد.")

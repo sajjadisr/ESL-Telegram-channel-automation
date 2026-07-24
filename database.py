@@ -46,13 +46,28 @@ def get_recent_posts(limit=15):
     return rows
 
 
-def search_related_posts(keyword, limit=3):
+def search_related_posts(keyword, category=None, limit=3):
+    """Find prior posts to avoid repeating. Keyword match is plain
+    LIKE %keyword%, which only catches near-exact title/keyword overlap
+    ("Grocery shopping" won't match "at the market"). Passing `category`
+    adds a same-category match as a cheap partial fix for that gap (Audit
+    #8) — it won't catch every near-duplicate, but it means the model at
+    least sees other posts from the same topic area, not just literal
+    string matches."""
     conn = get_conn()
-    rows = conn.execute(
-        "SELECT title, content FROM posts WHERE keywords LIKE ? OR title LIKE ? "
-        "ORDER BY id DESC LIMIT ?",
-        (f"%{keyword}%", f"%{keyword}%", limit),
-    ).fetchall()
+    if category:
+        rows = conn.execute(
+            "SELECT title, content FROM posts "
+            "WHERE keywords LIKE ? OR title LIKE ? OR category = ? "
+            "ORDER BY id DESC LIMIT ?",
+            (f"%{keyword}%", f"%{keyword}%", category, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT title, content FROM posts WHERE keywords LIKE ? OR title LIKE ? "
+            "ORDER BY id DESC LIMIT ?",
+            (f"%{keyword}%", f"%{keyword}%", limit),
+        ).fetchall()
     conn.close()
     return rows
 
@@ -62,6 +77,18 @@ def count_posts():
     n = conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
     conn.close()
     return n
+
+
+def has_post_on_date(date_str):
+    """True if at least one post (any format/status) was already saved for
+    the given date. Used as a same-day duplicate-run guard at the top of
+    main() — see Audit #2: nothing previously stopped two triggers
+    (workflow_dispatch + cron, or two manual runs) on the same day from
+    both publishing and both consuming a topic."""
+    conn = get_conn()
+    n = conn.execute("SELECT COUNT(*) FROM posts WHERE date = ?", (date_str,)).fetchone()[0]
+    conn.close()
+    return n > 0
 
 
 def get_titles_for_recap(limit=8):

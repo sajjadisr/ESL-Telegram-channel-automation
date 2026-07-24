@@ -305,18 +305,29 @@ def compose_image_prompt(scene_sentence):
 def build_strategy_prompt(recent_posts, feedback_list):
     posts_text = "\n".join(f"- {p[0]} ({p[1]})" for p in recent_posts) or "خالی"
     feedback_text = "\n".join(f"- {f['notes']}" for f in feedback_list) or "خالی"
+    # best_formats must reference formats that actually exist in FORMATS —
+    # a prior version of this prompt let the model invent formats (audio
+    # clips, flashcards) that nothing in the codebase implements, which
+    # just misleads anyone reading strategy.json expecting it to reflect
+    # what's live (Audit #5).
+    valid_formats = "\n".join(f"- {name} ({fmt['label']})" for name, fmt in FORMATS.items())
 
     return f"""پست‌های اخیر کانال:
 {posts_text}
 
-بازخوردهای دریافتی از مخاطبان:
+بازخوردهای دریافتی از مخاطبان (شامل نتایج واقعی کوییز/نظرسنجی‌ها در صورت وجود):
 {feedback_text}
 
 بر اساس این اطلاعات، استراتژی محتوایی کانال را به‌روزرسانی کن (کانال فقط مبتدی‌محور است، پیشنهادها هم باید مبتدی‌محور بمانند).
+اگه بازخوردی شامل «درصد پاسخ درست» یه کوییز بود و درصد پایین بود (مثلاً زیر ۵۰٪)، اون موضوع رو به‌عنوان یه نکته‌ای که باید بیشتر تمرین/مرور بشه در نظر بگیر.
+
+best_formats فقط باید از بین فرمت‌های واقعاً موجود در سیستم انتخاب بشه (دقیقاً همین نام‌های کلید انگلیسی رو برگردون، نه فرمت‌های تخیلی مثل فایل صوتی یا فلش‌کارت که هنوز پیاده‌سازی نشدن):
+{valid_formats}
+
 فقط یک JSON با این ساختار دقیق برگردان، بدون هیچ توضیح اضافه:
 {{
   "focus_more_on": ["..."],
   "focus_less_on": ["..."],
-  "best_formats": ["..."]
+  "best_formats": ["یکی یا چند تا از کلیدهای بالا، مثلاً micro_scene"]
 }}
 """

@@ -1,18 +1,337 @@
 [
-  {"level": "A1", "category": "Grammar", "topic": "Present simple tense"},
-  {"level": "A1", "category": "Vocabulary", "topic": "Daily routine words"},
-  {"level": "A1", "category": "Grammar", "topic": "Present continuous tense"},
-  {"level": "A1", "category": "Vocabulary", "topic": "Food and restaurant vocabulary"},
-  {"level": "A1", "category": "Grammar", "topic": "Past simple tense"},
-  {"level": "A1", "category": "Vocabulary", "topic": "Family members"},
-  {"level": "A1", "category": "Grammar", "topic": "There is / there are"},
-  {"level": "A1", "category": "Vocabulary", "topic": "Numbers and time"},
-  {"level": "A2", "category": "Idioms", "topic": "Common everyday idioms"},
-  {"level": "A2", "category": "Grammar", "topic": "Future with will and going to"},
-  {"level": "A2", "category": "Vocabulary", "topic": "Travel vocabulary"},
-  {"level": "A2", "category": "Common mistakes", "topic": "Say vs tell"},
-  {"level": "A2", "category": "Grammar", "topic": "Comparatives and superlatives"},
-  {"level": "A2", "category": "Vocabulary", "topic": "Weather and seasons"},
-  {"level": "A2", "category": "Common mistakes", "topic": "Do vs make (basic uses)"},
-  {"level": "A2", "category": "Grammar", "topic": "Countable and uncountable nouns"}
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Present simple tense"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Daily routine words"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Present continuous tense"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Food and restaurant vocabulary"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Past simple tense"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Family members"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "There is / there are"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Numbers and time"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Common everyday idioms"
+  },
+  {
+    "level": "A2",
+    "category": "Grammar",
+    "topic": "Future with will and going to"
+  },
+  {
+    "level": "A2",
+    "category": "Vocabulary",
+    "topic": "Travel vocabulary"
+  },
+  {
+    "level": "A2",
+    "category": "Common mistakes",
+    "topic": "Say vs tell"
+  },
+  {
+    "level": "A2",
+    "category": "Grammar",
+    "topic": "Comparatives and superlatives"
+  },
+  {
+    "level": "A2",
+    "category": "Vocabulary",
+    "topic": "Weather and seasons"
+  },
+  {
+    "level": "A2",
+    "category": "Common mistakes",
+    "topic": "Do vs make (basic uses)"
+  },
+  {
+    "level": "A2",
+    "category": "Grammar",
+    "topic": "Countable and uncountable nouns"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Past continuous tense"
+  },
+  {
+    "level": "A2",
+    "category": "Grammar",
+    "topic": "Present perfect (basic uses)"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Modal verbs: can and can't"
+  },
+  {
+    "level": "A2",
+    "category": "Grammar",
+    "topic": "Modal verbs: must and have to"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Prepositions of place (in, on, at)"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Prepositions of time (in, on, at)"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Articles: a, an, the"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Question words (who, what, where, when)"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Possessive adjectives (my, your, his, her)"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Plural nouns (regular and common irregular)"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "Giving instructions (imperatives)"
+  },
+  {
+    "level": "A2",
+    "category": "Grammar",
+    "topic": "Adverbs of frequency (always, usually, never)"
+  },
+  {
+    "level": "A2",
+    "category": "Grammar",
+    "topic": "Object pronouns (me, him, them)"
+  },
+  {
+    "level": "A1",
+    "category": "Grammar",
+    "topic": "This, that, these, those"
+  },
+  {
+    "level": "A2",
+    "category": "Grammar",
+    "topic": "Subject and object questions"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Clothes and shopping vocabulary"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Colors"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Body parts"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "House and furniture vocabulary"
+  },
+  {
+    "level": "A2",
+    "category": "Vocabulary",
+    "topic": "Jobs and occupations"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Hobbies and free time"
+  },
+  {
+    "level": "A2",
+    "category": "Vocabulary",
+    "topic": "Emotions and feelings"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Animals"
+  },
+  {
+    "level": "A2",
+    "category": "Vocabulary",
+    "topic": "City places and giving directions"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Sports vocabulary"
+  },
+  {
+    "level": "A2",
+    "category": "Vocabulary",
+    "topic": "Technology and phones"
+  },
+  {
+    "level": "A2",
+    "category": "Vocabulary",
+    "topic": "Health and going to the doctor"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "School and classroom objects"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Months and days of the week"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Money and prices"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Break the ice"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Piece of cake"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Under the weather"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "It's raining cats and dogs"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Hit the books"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Cost an arm and a leg"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Once in a blue moon"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Speak of the devil"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "The ball is in your court"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "When pigs fly"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Kill two birds with one stone"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Over the moon"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Sit on the fence"
+  },
+  {
+    "level": "A2",
+    "category": "Idioms",
+    "topic": "Let the cat out of the bag"
+  },
+  {
+    "level": "A2",
+    "category": "Common mistakes",
+    "topic": "Its vs it's"
+  },
+  {
+    "level": "A2",
+    "category": "Common mistakes",
+    "topic": "Their vs there vs they're"
+  },
+  {
+    "level": "A2",
+    "category": "Common mistakes",
+    "topic": "Much vs many"
+  },
+  {
+    "level": "A2",
+    "category": "Common mistakes",
+    "topic": "Good vs well"
+  },
+  {
+    "level": "A2",
+    "category": "Common mistakes",
+    "topic": "Borrow vs lend"
+  },
+  {
+    "level": "A2",
+    "category": "Common mistakes",
+    "topic": "Bring vs take"
+  },
+  {
+    "level": "A2",
+    "category": "Common mistakes",
+    "topic": "Few vs a little"
+  }
 ]
