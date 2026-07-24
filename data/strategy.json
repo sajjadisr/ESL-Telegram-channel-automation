@@ -1,17 +1,16 @@
 {
   "focus_more_on": [
-    "واژگان موضوعی و بسیار کاربردی روزمره (مانند غذا، خرید، آب‌و‌هوا)",
-    "فرمول‌های جمله‌سازی ساده با ترکیب گرامر و واژگان یادگرفته‌شده",
-    "تلفظ صحیح حروف و کلمات پایه"
+    "Daily vocabulary with pictures",
+    "Basic sentence structure",
+    "Simple conversation phrases"
   ],
   "focus_less_on": [
-    "قوانین گرامری پیچیده و استثنائات زبانی",
-    "اصطلاحات عامیانه (Slang) و ضرب‌المثل‌های دشوار",
-    "متون طولانی و تمرین‌های خواندن (Reading) سنگین"
+    "Complex grammar rules",
+    "Advanced reading texts"
   ],
   "best_formats": [
-    "تصاویر دو زبانه (فلش‌کارت دیجیتال برای لغات)",
-    "کوئیزهای تستی و نظرسنجی‌های ساده برای تعامل بیشتر",
-    "فایل‌های صوتی کوتاه (زیر ۳۰ ثانیه) برای تمرین تلفظ و شنیدار"
+    "Short vocabulary lists",
+    "Simple fill-in-the-blank quizzes",
+    "Example-based grammar tips"
   ]
 }
