@@ -1,16 +1,16 @@
 {
   "focus_more_on": [
-    "Daily vocabulary with pictures",
-    "Basic sentence structure",
-    "Simple conversation phrases"
+    "تمرین و تکرار زمان حال ساده (Present Simple)",
+    "کاربرد واژگان روتین روزمره در جملات ساده",
+    "نکات کلیدی مانند S سوم شخص در حال ساده"
   ],
   "focus_less_on": [
-    "Complex grammar rules",
-    "Advanced reading texts"
+    "فرمول‌های گرامری پیچیده و بدون مثال",
+    "لیست‌های طولانی از واژگان خارج از موضوع روتین روزمره"
   ],
   "best_formats": [
-    "Short vocabulary lists",
-    "Simple fill-in-the-blank quizzes",
-    "Example-based grammar tips"
+    "spot_mistake",
+    "quiz",
+    "micro_scene"
   ]
 }
