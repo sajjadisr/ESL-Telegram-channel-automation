@@ -1,4 +1,7 @@
-# Format definitions and prompt builders for the @InEnglish channel.
+import datetime
+
+from config import FEEDBACK_WINDOW_WEEKS
+from text_utils import strip_spoilers_for_context
 #
 # Design source: the inenglish-telegram-content skill (SKILL.md + references).
 # Anything here that looks like a rule ("must", "never") is enforcing something
@@ -160,9 +163,14 @@ TIER_INSTRUCTIONS = """از سیستم لایه‌ای زیر استفاده ک�
 
 
 def _format_related(related_posts):
-    return "\n".join(
-        f"- {title}: {content[:200]}..." for title, content in related_posts
-    ) or "موردی یافت نشد."
+    lines = []
+    for title, content in related_posts:
+        safe = strip_spoilers_for_context(content)
+        if len(safe) > 200:
+            lines.append(f"- {title}: {safe[:200]}...")
+        else:
+            lines.append(f"- {title}: {safe}")
+    return "\n".join(lines) or "موردی یافت نشد."
 
 
 def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
@@ -195,6 +203,7 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
 هویت کانال: {memory.get('channel_identity')}
 مخاطب: {memory.get('target_students')}
 موارد پرهیز: {memory.get('avoid')}
+الگوهای موفق اخیر (ادامه بده): {memory.get('successful_patterns', [])}
 تمرکز بیشتر روی (بر اساس بازخورد کاربران): {strategy.get('focus_more_on')}
 تمرکز کمتر روی: {strategy.get('focus_less_on')}
 
@@ -304,7 +313,16 @@ def compose_image_prompt(scene_sentence):
 
 def build_strategy_prompt(recent_posts, feedback_list):
     posts_text = "\n".join(f"- {p[0]} ({p[1]})" for p in recent_posts) or "خالی"
-    feedback_text = "\n".join(f"- {f['notes']}" for f in feedback_list) or "خالی"
+    cutoff = datetime.date.today() - datetime.timedelta(weeks=FEEDBACK_WINDOW_WEEKS)
+    recent_feedback = []
+    for entry in feedback_list:
+        try:
+            entry_date = datetime.date.fromisoformat(entry.get("date", ""))
+        except ValueError:
+            continue
+        if entry_date >= cutoff:
+            recent_feedback.append(entry)
+    feedback_text = "\n".join(f"- {f['notes']}" for f in recent_feedback) or "خالی"
     # best_formats must reference formats that actually exist in FORMATS —
     # a prior version of this prompt let the model invent formats (audio
     # clips, flashcards) that nothing in the codebase implements, which

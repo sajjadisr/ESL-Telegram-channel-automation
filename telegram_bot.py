@@ -3,6 +3,7 @@ import time
 import requests
 
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID, TELEGRAM_ADMIN_CHAT_ID
+from text_utils import truncate_html_safe
 
 API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
@@ -37,8 +38,7 @@ def _post_with_retry(url, **kwargs):
 
 def send_message(text, chat_id=None):
     url = f"{API_BASE}/sendMessage"
-    if len(text) > 4000:
-        text = text[:4000] + "..."
+    text = truncate_html_safe(text)
     response = _post_with_retry(url, data={
         "chat_id": chat_id or TELEGRAM_CHANNEL_ID,
         "text": text,
@@ -104,16 +104,18 @@ def stop_poll(message_id, chat_id=None):
 
 
 def send_admin_message(text):
-    """Generic 'message the admin' primitive. Falls back to printing to the
-    workflow log if TELEGRAM_ADMIN_CHAT_ID isn't set, so nothing is silently
-    lost. Used for image-generation prompts AND operational alerts (low
-    topic supply, broken quiz JSON, etc. — Audit #1, #4)."""
+    """Generic 'message the admin' primitive. Never raises — alerting must not
+    crash the run (Audit #21)."""
     if not TELEGRAM_ADMIN_CHAT_ID:
         print("=== ADMIN MESSAGE (TELEGRAM_ADMIN_CHAT_ID not set — printed here instead) ===")
         print(text)
         print("=== END ADMIN MESSAGE ===")
         return None
-    return send_message(text, chat_id=TELEGRAM_ADMIN_CHAT_ID)
+    try:
+        return send_message(text, chat_id=TELEGRAM_ADMIN_CHAT_ID)
+    except Exception as exc:  # noqa: BLE001 — alert path must never take down main()
+        print("send_admin_message failed (admin alert lost, run continues):", exc)
+        return None
 
 
 def send_admin_image_prompt(prompt_text, label=""):

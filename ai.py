@@ -79,7 +79,9 @@ _ALLOWED_CHARS_PATTERN = re.compile(
     "\uFE70-\uFEFF"        # Arabic Presentation Forms-B
     "\u200C\u200D"         # ZWNJ / ZWJ, used constantly in Persian typography
     "\u2000-\u206F"        # General punctuation (em dash, ellipsis, etc.)
+    "\u2300-\u23FF"        # Misc technical (⏰⌚⏳⏱ etc. — Audit #5)
     "\u2600-\u27BF"        # Misc symbols / dingbats (🟢🟡🔴 etc. live partly here)
+    "\uFE0F"               # Emoji variation selector (❤️ etc. — Audit #5)
     "\U0001F300-\U0001FAFF"  # Emoji blocks
     r"\s]"
 )

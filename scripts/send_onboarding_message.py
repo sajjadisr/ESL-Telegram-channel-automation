@@ -1,13 +1,4 @@
-"""Post a "what this channel is / how often it posts / where to start"
-welcome message to the Telegram channel and pin it.
-
-Run manually, once (or whenever you want to refresh the pinned message):
-
-    python scripts/send_onboarding_message.py
-
-This is intentionally NOT wired into the daily workflow — it's a one-time
-write, not a recurring cost (Audit #9: "No onboarding for new subscribers").
-"""
+"""Post a welcome message to Telegram (pinned) and Eitaa/Bale."""
 
 import sys
 from pathlib import Path
@@ -18,6 +9,7 @@ import requests
 
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID
 from telegram_bot import send_message
+from channels import broadcast_extra_channels
 
 ONBOARDING_TEXT = """👋 <b>به @InEnglish خوش اومدی!</b>
 
@@ -26,7 +18,7 @@ ONBOARDING_TEXT = """👋 <b>به @InEnglish خوش اومدی!</b>
 📅 <b>برنامه‌ی هفتگی:</b>
 🟢 اکثر روزها: یه صحنه‌ی کوتاه، نکته‌ی واژگان، یا داستان دنباله‌دار
 🟡 گاهی: شوخی تصویری با یه اصطلاح انگلیسی
-🔴 آخر هفته: کوییز یا نظرسنجی برای مرور چیزی که یاد گرفتیم
+🔴 آخر هفته: کوییز برای مرور چیزی که یاد گرفتیم
 
 📌 <b>از کجا شروع کنم؟</b>
 همینجا! هر پست خودکفاست — لازم نیست از اول بخونی. فقط با ما همراه باش و هر روز یه چیز کوچیک یاد بگیر.
@@ -36,9 +28,11 @@ ONBOARDING_TEXT = """👋 <b>به @InEnglish خوش اومدی!</b>
 
 def main():
     result = send_message(ONBOARDING_TEXT)
-    message_id = result.get("result", {}).get("message_id")
+    broadcast_extra_channels(ONBOARDING_TEXT)
+
+    message_id = result.get("result", {}).get("message_id") if result else None
     if message_id is None:
-        print("Message sent but couldn't read message_id from response — pin it manually in the app.")
+        print("Message sent but couldn't read message_id — pin manually in Telegram if needed.")
         return
 
     pin_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/pinChatMessage"
@@ -48,10 +42,9 @@ def main():
         timeout=20,
     )
     if pin_response.ok:
-        print("Onboarding message sent and pinned.")
+        print("Onboarding message sent to all configured channels; pinned on Telegram.")
     else:
-        print("Onboarding message sent, but pinning failed:", pin_response.text)
-        print("Pin it manually from the Telegram app if you'd like it to stay at the top.")
+        print("Onboarding sent, but Telegram pinning failed:", pin_response.text)
 
 
 if __name__ == "__main__":

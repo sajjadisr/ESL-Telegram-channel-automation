@@ -1,27 +1,16 @@
 """Turns real Telegram poll/quiz results into automatic feedback.json
-entries — no human typing required.
-
-Why this works with a cron-only bot: anonymous polls (is_anonymous=True,
-what this project sends) never generate a poll_answer webhook update, and
-even if they did, a bot that only runs once a day via GitHub Actions isn't
-listening to receive it. But Telegram's stopPoll endpoint returns the final
-per-option vote tally for ANY poll — anonymous or not — the moment you close
-it. So instead of listening in real time, we just close yesterday's poll at
-the start of today's run and read the tally out of the response.
-
-Flow:
-  1. handle_poll_format() in main.py calls save_pending_poll() right after a
-     poll/quiz is successfully sent.
-  2. main() calls harvest_pending_polls() first thing on the NEXT run, before
-     anything else — closes it, computes the vote/correct-answer rate, and
-     appends a real entry to feedback.json.
-"""
+entries and updates successful_patterns in memory (Audit Problem B)."""
 
 import datetime
+import re
 
-from config import FEEDBACK_PATH, PENDING_POLLS_PATH
+from config import FEEDBACK_PATH, MEMORY_PATH, PENDING_POLLS_PATH
 from memory import load_json, save_json
 from telegram_bot import stop_poll
+
+MAX_SUCCESSFUL_PATTERNS = 20
+_HIGH_CORRECT_RATE = 70
+_LOW_CORRECT_RATE = 40
 
 
 def save_pending_poll(message_id, question, is_quiz=False, correct_index=None):
@@ -36,17 +25,28 @@ def save_pending_poll(message_id, question, is_quiz=False, correct_index=None):
     save_json(PENDING_POLLS_PATH, pending)
 
 
+def _append_successful_pattern(memory, pattern):
+    patterns = memory.setdefault("successful_patterns", [])
+    if pattern in patterns:
+        patterns.remove(pattern)
+    patterns.insert(0, pattern)
+    memory["successful_patterns"] = patterns[:MAX_SUCCESSFUL_PATTERNS]
+
+
+def _update_patterns_from_quiz(memory, question, correct_rate):
+    if correct_rate >= _HIGH_CORRECT_RATE:
+        _append_successful_pattern(memory, f"quiz_high: {question[:80]}")
+    elif correct_rate <= _LOW_CORRECT_RATE:
+        _append_successful_pattern(memory, f"quiz_needs_review: {question[:80]}")
+
+
 def harvest_pending_polls():
-    """Stop and read the vote tally for any poll(s) saved from a prior run,
-    append a feedback.json entry for each, then clear the pending list.
-    Safe to call every run — a no-op if nothing is pending. Polls Telegram
-    fails to stop (network hiccup, already closed, etc.) are kept pending
-    and retried on a future run rather than silently dropped."""
     pending = load_json(PENDING_POLLS_PATH, [])
     if not pending:
         return
 
     feedback_list = load_json(FEEDBACK_PATH, [])
+    memory = load_json(MEMORY_PATH, {})
     still_pending = []
 
     for entry in pending:
@@ -65,10 +65,12 @@ def harvest_pending_polls():
 
         note_parts = [f"نظرسنجی «{entry.get('question', '')}» با {total_votes} رأی بسته شد."]
         correct_index = entry.get("correct_index")
+        correct_rate = None
         if entry.get("is_quiz") and isinstance(correct_index, int) and total_votes:
             if 0 <= correct_index < len(tally):
                 correct_rate = tally[correct_index]["votes"] / total_votes * 100
                 note_parts.append(f"درصد پاسخ درست: {correct_rate:.0f}٪.")
+                _update_patterns_from_quiz(memory, entry.get("question", ""), correct_rate)
         note_parts.append(
             "توزیع آرا: " + "، ".join(f"{t['text']}={t['votes']}" for t in tally)
         )
@@ -78,8 +80,10 @@ def harvest_pending_polls():
             "notes": " ".join(note_parts),
             "date": str(datetime.date.today()),
             "source": "auto_poll_harvest",
+            **({"correct_rate": correct_rate} if correct_rate is not None else {}),
         })
         print("Harvested poll feedback:", " ".join(note_parts))
 
     save_json(FEEDBACK_PATH, feedback_list)
     save_json(PENDING_POLLS_PATH, still_pending)
+    save_json(MEMORY_PATH, memory)

@@ -47,3 +47,6 @@ RECAP_EVERY_N_POSTS = 14
 # level or below, main.py sends an admin alert instead of only printing a
 # log line nobody reads until the channel goes silent (Audit #1).
 LOW_TOPIC_WARNING_THRESHOLD = 10
+
+# Rolling window for weekly strategy feedback (Audit Problem B).
+FEEDBACK_WINDOW_WEEKS = 8
