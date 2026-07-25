@@ -16,6 +16,11 @@
       "topic": "Present continuous tense",
       "format": "micro_scene",
       "date": "2026-07-25"
+    },
+    {
+      "topic": "Present simple tense",
+      "format": "spot_mistake",
+      "date": "2026-07-25"
     }
   ],
   "avoid": [
