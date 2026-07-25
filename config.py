@@ -50,3 +50,12 @@ LOW_TOPIC_WARNING_THRESHOLD = 10
 
 # Rolling window for weekly strategy feedback (Audit Problem B).
 FEEDBACK_WINDOW_WEEKS = 8
+
+# weekly_strategy.py only lets `best_formats` reshape data/format_schedule.json
+# once there are at least this many real feedback entries (auto poll/quiz
+# harvests or manual feedback_add.py notes) inside FEEDBACK_WINDOW_WEEKS.
+# Below this, best_formats is still computed and saved to strategy.json (it
+# still steers what the model writes about via focus_more_on/focus_less_on),
+# but there isn't enough real engagement signal yet to justify changing which
+# days get which format — early on the model would otherwise be guessing.
+MIN_FEEDBACK_FOR_SCHEDULE_UPDATE = 4

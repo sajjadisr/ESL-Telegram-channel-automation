@@ -311,17 +311,25 @@ def compose_image_prompt(scene_sentence):
     return f"{scene} {IMAGE_STYLE} {IMAGE_PALETTE} {IMAGE_NEGATIVE}"
 
 
-def build_strategy_prompt(recent_posts, feedback_list):
-    posts_text = "\n".join(f"- {p[0]} ({p[1]})" for p in recent_posts) or "خالی"
-    cutoff = datetime.date.today() - datetime.timedelta(weeks=FEEDBACK_WINDOW_WEEKS)
-    recent_feedback = []
+def filter_recent_feedback(feedback_list, window_weeks=FEEDBACK_WINDOW_WEEKS):
+    """Feedback entries from the last `window_weeks` weeks. Shared by the
+    strategy prompt (below) and by weekly_strategy.py's decision on whether
+    there's enough real signal yet to let engagement reshape the schedule."""
+    cutoff = datetime.date.today() - datetime.timedelta(weeks=window_weeks)
+    recent = []
     for entry in feedback_list:
         try:
             entry_date = datetime.date.fromisoformat(entry.get("date", ""))
         except ValueError:
             continue
         if entry_date >= cutoff:
-            recent_feedback.append(entry)
+            recent.append(entry)
+    return recent
+
+
+def build_strategy_prompt(recent_posts, feedback_list):
+    posts_text = "\n".join(f"- {p[0]} ({p[1]})" for p in recent_posts) or "خالی"
+    recent_feedback = filter_recent_feedback(feedback_list)
     feedback_text = "\n".join(f"- {f['notes']}" for f in recent_feedback) or "خالی"
     # best_formats must reference formats that actually exist in FORMATS —
     # a prior version of this prompt let the model invent formats (audio

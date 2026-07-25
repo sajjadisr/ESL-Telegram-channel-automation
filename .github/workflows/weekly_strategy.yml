@@ -28,12 +28,12 @@ jobs:
         run: |
           git config user.name "channel-bot"
           git config user.email "actions@github.com"
-          git add data/strategy.json
+          git add data/strategy.json data/format_schedule.json
           if git diff --staged --quiet; then
-            echo "No strategy changes to commit."
+            echo "No strategy or schedule changes to commit."
             exit 0
           fi
-          git commit -m "Weekly strategy update"
+          git commit -m "Weekly strategy + schedule update"
           for i in 1 2 3 4 5; do
             if git pull --rebase origin main && git push; then
               echo "Pushed successfully."
