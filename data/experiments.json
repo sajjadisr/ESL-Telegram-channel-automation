@@ -1,0 +1,19 @@
+[
+  {
+    "id": "hook_style_v1",
+    "name": "Quiz/poll hook style: statement vs question",
+    "active": true,
+    "metric_goal": "vote_count",
+    "variants": [
+      {
+        "label": "statement_hook",
+        "prompt_note": "سوال رو با یه جمله‌ی خبری شروع کن که یه اشتباه رایج یا نکته‌ی جالب رو مطرح می‌کنه (مثلاً «خیلیا اینجا اشتباه می‌کنن...») نه با خود سوال."
+      },
+      {
+        "label": "direct_question_hook",
+        "prompt_note": "سوال رو مستقیم و کوتاه به‌صورت پرسشی شروع کن (مثلاً «می‌تونی جواب درست رو پیدا کنی؟») بدون مقدمه‌چینی."
+      }
+    ],
+    "assigned_variants": []
+  }
+]

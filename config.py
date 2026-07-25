@@ -59,3 +59,37 @@ FEEDBACK_WINDOW_WEEKS = 8
 # but there isn't enough real engagement signal yet to justify changing which
 # days get which format — early on the model would otherwise be guessing.
 MIN_FEEDBACK_FOR_SCHEDULE_UPDATE = 4
+
+# --- Weekly campaigns (campaigns.py) ----------------------------------------
+# Tracks the current week's pinned theme category + what's already been
+# posted this week, so posts can reference each other instead of each living
+# in isolation.
+CAMPAIGN_STATE_PATH = "data/campaign_state.json"
+
+# --- Engagement telemetry / reward score (analytics.py) --------------------
+# Post-level metrics log. Scope is deliberately limited to what this
+# cron-only, Bot-API-only pipeline can actually observe — see analytics.py's
+# module docstring before assuming this covers views/reactions/forwards.
+ANALYTICS_PATH = "data/analytics.json"
+
+# Composite reward score weights (analytics.compute_reward_score). Must sum
+# to 1.0. Engagement = this poll's vote count vs. this channel's own recent
+# normal; Learning = quiz correct-rate. vote_poll (no correct answer) scores
+# on engagement alone regardless of these weights.
+REWARD_WEIGHT_ENGAGEMENT = 0.5
+REWARD_WEIGHT_LEARNING = 0.5
+
+# --- Rule-based audience profile (audience_profile.py) ----------------------
+# Single aggregate "class profile", not per-user — Telegram channel polls
+# must be anonymous (channels can't send non-anonymous polls at all), so
+# there's no per-user data to trace even in principle. See the module
+# docstring for why this is deliberately NOT a BKT/DKT/clustering model.
+AUDIENCE_PROFILE_PATH = "data/audience_profile.json"
+AUDIENCE_WEAK_THRESHOLD = 50    # quiz correct-rate % at/below this → weak category
+AUDIENCE_STRONG_THRESHOLD = 80  # quiz correct-rate % at/above this → strong category
+
+# --- Sequential A/B testing (experiments.py) --------------------------------
+# One experiment active at a time, alternated post-by-post — see the module
+# docstring for why a multi-armed bandit or user-level split isn't a valid
+# design on a single broadcast channel with no per-user targeting.
+EXPERIMENTS_PATH = "data/experiments.json"

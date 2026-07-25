@@ -1,5 +1,13 @@
 """Turns real Telegram poll/quiz results into automatic feedback.json
-entries and updates successful_patterns in memory (Audit Problem B)."""
+entries and updates successful_patterns in memory (Audit Problem B).
+
+Also the harvest point for analytics.py (Weakness 4 — engagement telemetry
++ reward score) and audience_profile.py (Weakness 1 — the aggregate
+audience profile): both need the actual vote tally, which only exists
+once stop_poll() closes the poll, a day or more after it was sent — so
+theme_category/experiment_id/variant_label are captured at SEND time (see
+main.py) and carried on the pending_polls.json entry through to here,
+rather than re-derived later from the (free-form, Persian) question text."""
 
 import datetime
 import re
@@ -7,13 +15,17 @@ import re
 from config import FEEDBACK_PATH, MEMORY_PATH, PENDING_POLLS_PATH
 from memory import load_json, save_json
 from telegram_bot import stop_poll
+import analytics
+import audience_profile
 
 MAX_SUCCESSFUL_PATTERNS = 20
 _HIGH_CORRECT_RATE = 70
 _LOW_CORRECT_RATE = 40
 
 
-def save_pending_poll(message_id, question, is_quiz=False, correct_index=None):
+def save_pending_poll(message_id, question, is_quiz=False, correct_index=None,
+                       theme_category=None, experiment_id=None, variant_label=None,
+                       extra_channel_results=None):
     pending = load_json(PENDING_POLLS_PATH, [])
     pending.append({
         "message_id": message_id,
@@ -21,6 +33,10 @@ def save_pending_poll(message_id, question, is_quiz=False, correct_index=None):
         "is_quiz": is_quiz,
         "correct_index": correct_index,
         "sent_date": str(datetime.date.today()),
+        "theme_category": theme_category,
+        "experiment_id": experiment_id,
+        "variant_label": variant_label,
+        "extra_channel_delivery": analytics._summarize_delivery(extra_channel_results),
     })
     save_json(PENDING_POLLS_PATH, pending)
 
@@ -83,6 +99,24 @@ def harvest_pending_polls():
             **({"correct_rate": correct_rate} if correct_rate is not None else {}),
         })
         print("Harvested poll feedback:", " ".join(note_parts))
+
+        # Weakness 4 (engagement telemetry + reward score) — score this
+        # poll/quiz now that we finally have a real vote tally.
+        analytics.record_poll_metrics(
+            question=entry.get("question", ""),
+            format_name="quiz" if entry.get("is_quiz") else "vote_poll",
+            is_quiz=bool(entry.get("is_quiz")),
+            total_votes=total_votes,
+            correct_rate=correct_rate,
+            experiment_id=entry.get("experiment_id"),
+            variant_label=entry.get("variant_label"),
+            extra_channel_delivery=entry.get("extra_channel_delivery"),
+        )
+
+        # Weakness 1 (audience profile) — only quizzes carry a graded,
+        # topic-attributable signal (vote_poll has no right answer).
+        if correct_rate is not None:
+            audience_profile.update_from_quiz_result(entry.get("theme_category"), correct_rate)
 
     save_json(FEEDBACK_PATH, feedback_list)
     save_json(PENDING_POLLS_PATH, still_pending)

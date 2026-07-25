@@ -174,9 +174,15 @@ def _format_related(related_posts):
 
 
 def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
-                             extra_note="", story=None, recap_titles=None):
+                             extra_note="", story=None, recap_titles=None,
+                             campaign_note="", profile_note=""):
     """For every text-post format (everything except quiz/vote_poll, which are
-    handled by build_poll_prompt because they need structured JSON, not prose)."""
+    handled by build_poll_prompt because they need structured JSON, not prose).
+
+    campaign_note (campaigns.campaign_context_block): this week's theme +
+    what's already been posted this week, so posts can reference each other.
+    profile_note (audience_profile.profile_context_block): the aggregate
+    audience profile (weak/strong categories, recent quiz accuracy)."""
     fmt = FORMATS[format_name]
     related_text = _format_related(related_posts)
 
@@ -206,6 +212,8 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
 الگوهای موفق اخیر (ادامه بده): {memory.get('successful_patterns', [])}
 تمرکز بیشتر روی (بر اساس بازخورد کاربران): {strategy.get('focus_more_on')}
 تمرکز کمتر روی: {strategy.get('focus_less_on')}
+{("\nپروفایل مخاطب (بر اساس داده‌ی واقعی کوییز/نظرسنجی):\n" + profile_note) if profile_note else ""}
+{("\nزمینه‌ی کمپین این هفته:\n" + campaign_note) if campaign_note else ""}
 
 {BEGINNER_CALIBRATION}
 
@@ -255,15 +263,25 @@ def build_review_prompt(content, format_name):
 """
 
 
-def build_poll_prompt(related_posts, topic, format_name, recent_titles=None):
+def build_poll_prompt(related_posts, topic, format_name, recent_titles=None,
+                       campaign_note="", profile_note="", variant_note=""):
     """For quiz / vote_poll formats — output is structured JSON, sent through
-    Telegram's native sendPoll endpoint by telegram_bot.py, never as text."""
+    Telegram's native sendPoll endpoint by telegram_bot.py, never as text.
+
+    variant_note (experiments.variant_prompt_note): the active A/B test's
+    instruction for whichever variant this post was assigned, if any
+    experiment is currently running."""
     fmt = FORMATS[format_name]
     related_text = _format_related(related_posts)
     recent_block = ""
     if recent_titles:
         recent_block = "موضوعات واقعی این هفته (سوال باید از اینا باشه):\n" + \
             "\n".join(f"- {t}" for t in recent_titles)
+    context_note = ""
+    if profile_note:
+        context_note += "\nپروفایل مخاطب (بر اساس داده‌ی واقعی کوییز/نظرسنجی):\n" + profile_note
+    if campaign_note:
+        context_note += "\nزمینه‌ی کمپین این هفته:\n" + campaign_note
 
     is_quiz = fmt["needs_poll"] == "quiz"
     json_shape = (
@@ -279,6 +297,7 @@ def build_poll_prompt(related_posts, topic, format_name, recent_titles=None):
 {fmt['guidance']}
 
 {BEGINNER_CALIBRATION}
+{context_note}
 
 {recent_block}
 
@@ -294,6 +313,7 @@ def build_poll_prompt(related_posts, topic, format_name, recent_titles=None):
 - همه‌ی متن‌ها (سوال، گزینه‌ها، توضیح) باید فارسیِ محاوره‌ای و گرم باشن؛ کلمات/جملات انگلیسی داخل گزینه‌ها می‌تونن بیان.
 {"- explanation حداکثر ۲۰۰ کاراکتر." if is_quiz else ""}
 {"- correct_index باید ایندکس (از ۰) گزینه‌ی درست باشه." if is_quiz else "- این نظرسنجیه، گزینه‌ی «درست» نداشته باش."}
+{("- " + variant_note) if variant_note else ""}
 """
 
 

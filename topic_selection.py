@@ -58,9 +58,15 @@ def record_topic_coverage(memory, topic_name, format_name, date_str):
     )
 
 
-def get_next_topic(memory, format_name, category_filter=None):
+def get_next_topic(memory, format_name, category_filter=None, theme_category=None):
     """Pick the next topic. Never returns None while topics.json is non-empty —
-    when the fresh pool is exhausted, recycle with a different format (Audit #17)."""
+    when the fresh pool is exhausted, recycle with a different format (Audit #17).
+
+    theme_category (campaigns.py) is a SOFT preference only, applied within
+    the fresh pool: it never overrides category_filter (illustrated_pun's
+    hard requirement) and never blocks publishing by making a topic
+    unavailable — if nothing fresh matches the week's theme, we fall back
+    to the normal fresh/recycle order exactly as before campaigns existed."""
     candidates = _all_topics()
     if category_filter:
         candidates = [t for t in candidates if t["category"] == category_filter]
@@ -69,9 +75,13 @@ def get_next_topic(memory, format_name, category_filter=None):
 
     history_topics = {e["topic"] for e in _topic_history(memory)}
 
-    # Fresh topics first.
+    # Fresh topics first, preferring this week's theme category if one is set.
     fresh = [t for t in candidates if t["topic"] not in history_topics]
     if fresh:
+        if theme_category:
+            themed = [t for t in fresh if t["category"] == theme_category]
+            if themed:
+                return themed[0]
         return fresh[0]
 
     # Recycle: prefer topics last taught in a different format, oldest first.

@@ -1,10 +1,73 @@
-from config import FEEDBACK_PATH, STRATEGY_PATH, SCHEDULE_PATH, MIN_FEEDBACK_FOR_SCHEDULE_UPDATE
+from config import (
+    FEEDBACK_PATH, STRATEGY_PATH, SCHEDULE_PATH, MIN_FEEDBACK_FOR_SCHEDULE_UPDATE, ANALYTICS_PATH,
+)
 from database import get_recent_posts
 from memory import load_json, save_json
 from ai import generate_json
 from prompts import FORMATS, build_strategy_prompt, filter_recent_feedback
 from schedule_builder import build_engagement_schedule, diff_schedule
 from telegram_bot import send_admin_message
+import analytics
+import audience_profile
+import experiments
+
+MIN_SAMPLES_TO_FLAG_EXPERIMENT = 3  # per variant — small on purpose, this
+# channel runs at most ~1 quiz and ~1 vote_poll a week, so "enough data" is
+# already a matter of months, not something to set high and wait forever for.
+
+
+def build_intelligence_report_text():
+    """Weekly digest of the three review-driven systems (reward score,
+    audience profile, active A/B test) — see analytics.py / audience_profile.py
+    / experiments.py for what each one can and can't observe."""
+    lines = ["📊 <b>گزارش هفتگی هوشمندی کانال</b>"]
+
+    score_summary = analytics.recent_score_summary()
+    if score_summary:
+        score_lines = "، ".join(
+            f"{FORMATS.get(f, {}).get('label', f)}: {s}" for f, s in score_summary.items()
+        )
+        lines.append(f"میانگین امتیاز ترکیبی اخیر (تعامل + یادگیری) بر اساس فرمت: {score_lines}")
+    else:
+        lines.append("هنوز هیچ کوییز/نظرسنجی‌ای بسته و امتیازدهی نشده — امتیاز ترکیبی فعلاً موجود نیست.")
+
+    profile = audience_profile.get_profile()
+    if profile.get("avg_quiz_accuracy") is not None:
+        lines.append(f"میانگین درصد پاسخ درست کوییزهای اخیر: {profile['avg_quiz_accuracy']}٪")
+    if profile.get("weak_categories"):
+        lines.append("دسته‌های ضعیف مخاطب (طبق کوییزهای واقعی): " + "، ".join(profile["weak_categories"]))
+    if profile.get("strong_categories"):
+        lines.append("دسته‌های قوی مخاطب: " + "، ".join(profile["strong_categories"]))
+
+    active_exp = experiments.get_active_experiment()
+    if active_exp:
+        all_analytics = load_json(ANALYTICS_PATH, [])
+        results = experiments.summarize_results(active_exp, all_analytics)
+        result_lines = "؛ ".join(
+            f"{label}: n={r['n']}، میانگین رأی={r['avg_votes']}، میانگین امتیاز={r['avg_score']}"
+            for label, r in results.items()
+        )
+        lines.append(f"آزمایش فعال «{active_exp['name']}»: {result_lines}")
+        min_n = min((r["n"] for r in results.values()), default=0)
+        if min_n >= MIN_SAMPLES_TO_FLAG_EXPERIMENT:
+            lines.append(
+                "هر دو حالت این آزمایش الان نمونه‌ی کافی دارن — یه نگاه بنداز و خودت تصمیم بگیر "
+                "کدوم رو نگه داری (سیستم چیزی رو خودکار انتخاب نمی‌کنه)."
+            )
+
+    lines.append(
+        "یادآوری: آمار بالا فقط از تلگرامه. ایتا و بله فعلاً فقط وضعیت ارسال (موفق/ناموفق) رو "
+        "گزارش می‌دن، نه رأی یا تعامل واقعی — این دو تا رو کنار آمار تلگرام به‌عنوان چیز "
+        "قابل‌مقایسه نبین."
+    )
+    return "\n".join(lines)
+
+
+def send_weekly_intelligence_report():
+    """Independent of whether the strategy-generation call in main() below
+    succeeds this run — the report describes existing data, so it always
+    goes out."""
+    send_admin_message(build_intelligence_report_text())
 
 
 def validate_strategy(data):
@@ -22,6 +85,8 @@ def validate_strategy(data):
 
 
 def main():
+    send_weekly_intelligence_report()
+
     recent_posts = get_recent_posts(limit=15)
     feedback_list = load_json(FEEDBACK_PATH, [])
 
