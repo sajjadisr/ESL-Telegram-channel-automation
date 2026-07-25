@@ -247,6 +247,9 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
         salience_block = TARGET_SALIENCE.format(topic_text=topic["topic"])
         single_item_block = SINGLE_ITEM_FOCUS
 
+    profile_block = ("\nپروفایل مخاطب (بر اساس داده‌ی واقعی کوییز/نظرسنجی):\n" + profile_note) if profile_note else ""
+    campaign_block = ("\nزمینه‌ی کمپین این هفته:\n" + campaign_note) if campaign_note else ""
+
     return f"""تو یک معلم زبان انگلیسی حرفه‌ای و مدیر محتوای کانال تلگرامی @InEnglish هستی — آموزش انگلیسی به فارسی‌زبانان مبتدی.
 
 هویت کانال: {memory.get('channel_identity')}
@@ -255,8 +258,8 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
 الگوهای موفق اخیر (ادامه بده): {memory.get('successful_patterns', [])}
 تمرکز بیشتر روی (بر اساس بازخورد کاربران): {strategy.get('focus_more_on')}
 تمرکز کمتر روی: {strategy.get('focus_less_on')}
-{("\nپروفایل مخاطب (بر اساس داده‌ی واقعی کوییز/نظرسنجی):\n" + profile_note) if profile_note else ""}
-{("\nزمینه‌ی کمپین این هفته:\n" + campaign_note) if campaign_note else ""}
+{profile_block}
+{campaign_block}
 
 {BEGINNER_CALIBRATION}
 

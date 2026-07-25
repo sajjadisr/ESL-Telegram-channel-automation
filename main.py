@@ -3,12 +3,8 @@ import json
 
 from config import (
     MEMORY_PATH, STRATEGY_PATH, SCHEDULE_PATH, STORY_PATH,
-<<<<<<< HEAD
-    RECAP_EVERY_N_POSTS, LOW_TOPIC_WARNING_THRESHOLD, POSTS_PER_DAY,
-=======
     RECAP_EVERY_N_POSTS, LOW_TOPIC_WARNING_THRESHOLD, AUTO_GENERATE_TOPIC_COUNT,
     POSTS_PER_DAY, FRESH_TOPICS_PER_DAY,
->>>>>>> 17d9a45 (Claude 3 posts second fix)
 )
 from database import (
     save_post, search_related_posts, count_posts, get_titles_for_recap,
