@@ -27,7 +27,32 @@
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Family members"
+    "topic": "Family: mother"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Family: father"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Family: sister"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Family: brother"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Family: grandmother"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Family: grandfather"
   },
   {
     "level": "A1",
@@ -157,12 +182,62 @@
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Colors"
+    "topic": "Color: red"
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Body parts"
+    "topic": "Color: blue"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Color: green"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Color: yellow"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Color: black"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Color: white"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Body part: head"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Body part: hand"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Body part: eye"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Body part: leg"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Body part: ear"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Body part: mouth"
   },
   {
     "level": "A1",
@@ -217,7 +292,12 @@
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Months and days of the week"
+    "topic": "Days of the week"
+  },
+  {
+    "level": "A1",
+    "category": "Vocabulary",
+    "topic": "Months of the year"
   },
   {
     "level": "A1",

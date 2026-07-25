@@ -3,7 +3,12 @@ import json
 
 from config import (
     MEMORY_PATH, STRATEGY_PATH, SCHEDULE_PATH, STORY_PATH,
+<<<<<<< HEAD
     RECAP_EVERY_N_POSTS, LOW_TOPIC_WARNING_THRESHOLD, POSTS_PER_DAY,
+=======
+    RECAP_EVERY_N_POSTS, LOW_TOPIC_WARNING_THRESHOLD, AUTO_GENERATE_TOPIC_COUNT,
+    POSTS_PER_DAY, FRESH_TOPICS_PER_DAY,
+>>>>>>> 17d9a45 (Claude 3 posts second fix)
 )
 from database import (
     save_post, search_related_posts, count_posts, get_titles_for_recap,
@@ -20,9 +25,10 @@ from telegram_bot import send_message, send_poll, send_admin_image_prompt, send_
 from channels import broadcast_extra_channels, format_quiz_for_extra_channels
 from poll_feedback import harvest_pending_polls, save_pending_poll
 from topic_selection import (
-    migrate_covered_topics, get_next_topic, remaining_topic_count,
-    record_topic_coverage,
+    migrate_covered_topics, get_next_topic, get_due_review_topic,
+    remaining_topic_count, record_topic_coverage,
 )
+from topic_generation import generate_and_append_topics
 import campaigns
 import audience_profile
 import experiments
@@ -30,6 +36,13 @@ import analytics
 
 MAX_REVIEW_ATTEMPTS = 2
 ILLUSTRATED_PUN_CATEGORY = "Idioms"
+
+# Fallback format for "extra" daily slots (beyond FRESH_TOPICS_PER_DAY) on a
+# day whose scheduled format needs a poll or a manual image — those formats
+# stay capped at their normal weekday cadence (see main()'s slot logic);
+# repeating them within the same day is a near-duplicate quiz or a second
+# manual-posting task, neither of which is what going to 3x/day was for.
+DEFAULT_EXTRA_SLOT_FORMAT = "micro_scene"
 
 INVENTED_IDIOM_TOPIC = {
     "topic": "Free-choice idiom",
@@ -41,11 +54,23 @@ INVENTED_IDIOM_TOPIC = {
 def maybe_alert_low_topic_supply(memory):
     remaining = remaining_topic_count(memory)
     if remaining <= LOW_TOPIC_WARNING_THRESHOLD:
-        send_admin_message(
-            f"⚠️ فقط {remaining} موضوع تازه (هرگز تدریس‌نشده) توی data/topics.json باقی مونده. "
-            f"بعدش سیستم خودش موضوعات قبلی رو با فرمت‌های جدید دوباره می‌آره، "
-            f"ولی بهتره موضوعات مبتدی (A1–A2) بیشتری هم اضافه کنی."
-        )
+        added = []
+        try:
+            added = generate_and_append_topics(AUTO_GENERATE_TOPIC_COUNT)
+        except Exception as exc:
+            print("maybe_alert_low_topic_supply: auto-generation failed:", exc)
+        if added:
+            send_admin_message(
+                f"ℹ️ موضوعات تازه داشت کم می‌شد ({remaining} مونده بود)، سیستم خودش "
+                f"{len(added)} موضوع جدید (سطح A1–A2) به data/topics.json اضافه کرد. "
+                f"لازم نیست کاری بکنی — فقط برای اطلاع."
+            )
+        else:
+            send_admin_message(
+                f"⚠️ فقط {remaining} موضوع تازه (هرگز تدریس‌نشده) توی data/topics.json باقی مونده، "
+                f"و تلاش خودکار برای اضافه‌کردن موضوع جدید این‌بار جواب نداد. یه نگاه بنداز — "
+                f"شاید لازم باشه دستی چندتا موضوع مبتدی (A1–A2) اضافه کنی."
+            )
 
 
 def resolve_today_format():
@@ -72,7 +97,7 @@ def generate_reviewed_text(memory, strategy, related, topic, format_name,
         return review.get("ok") is not True or bool(find_stray_script_chars(text))
 
     content = _draft(extra_note)
-    review = review_content(build_review_prompt(content, format_name))
+    review = review_content(build_review_prompt(content, format_name, topic_text=topic.get("topic")))
     attempts = 0
     while _needs_retry(content, review) and attempts < MAX_REVIEW_ATTEMPTS:
         stray = find_stray_script_chars(content)
@@ -83,7 +108,7 @@ def generate_reviewed_text(memory, strategy, related, topic, format_name,
                 + " ".join(stray) + "). دوباره بنویس و فقط از حروف فارسی، انگلیسی، و اموجی معمولی استفاده کن."
             )
         content = _draft(note=(extra_note + " " + note).strip())
-        review = review_content(build_review_prompt(content, format_name))
+        review = review_content(build_review_prompt(content, format_name, topic_text=topic.get("topic")))
         attempts += 1
 
     stray = find_stray_script_chars(content)
@@ -227,6 +252,7 @@ def main():
             f"منتشر شده؛ این اجرا رد می‌شه."
         )
         return
+    slot_number = posted_today + 1  # 1-indexed: which run of today's POSTS_PER_DAY this is
 
     memory = load_json(MEMORY_PATH, {})
     migrate_covered_topics(memory)
@@ -276,6 +302,31 @@ def main():
         print("پست مرور پیشرفت منتشر شد.")
         return
 
+    # Only the day's FIRST slot keeps the raw weekday-scheduled format —
+    # that's what preserves "quiz day" / "idiom day" / etc. "Extra" slots
+    # (slot_number > FRESH_TOPICS_PER_DAY) exist because of the move to
+    # POSTS_PER_DAY > 1, and are handled differently below: they never
+    # repeat a needs_poll/needs_image format within the same day (Audit:
+    # that produced 3 near-duplicate quiz posts, or 3 separate manual-
+    # image tasks, on days scheduled for those formats), and they check
+    # for a due spaced-repetition review (topic_selection.get_due_review_
+    # topic — config.REVIEW_INTERVALS_DAYS) before falling back to fresh
+    # material. This is also the load-bearing balance for the review
+    # scheduler: config.REVIEW_INTERVALS_DAYS is sized so that
+    # FRESH_TOPICS_PER_DAY fresh topics/day don't generate more review
+    # demand than (POSTS_PER_DAY - FRESH_TOPICS_PER_DAY) slots/day can
+    # serve — see the comment on REVIEW_INTERVALS_DAYS in config.py before
+    # changing either number.
+    review_topic, review_stage, review_last_format = (None, None, None)
+    if slot_number > FRESH_TOPICS_PER_DAY:
+        if fmt["needs_poll"] or fmt["needs_image"]:
+            format_name = DEFAULT_EXTRA_SLOT_FORMAT
+            fmt = FORMATS[format_name]
+        review_topic, review_stage, review_last_format = get_due_review_topic(memory)
+        if review_topic:
+            format_name = "vocab_spotlight" if review_last_format == "spot_mistake" else "spot_mistake"
+            fmt = FORMATS[format_name]
+
     if fmt["needs_poll"]:
         recent_titles = [row[0] for row in get_recent_posts(limit=7)]
         if not recent_titles:
@@ -318,9 +369,19 @@ def main():
 
     maybe_alert_low_topic_supply(memory)
 
-    topic, extra_note, invented_idiom_mode = _select_topic(
-        memory, format_name, theme_category=campaign_state.get("theme_category"),
-    )
+    if review_topic:
+        topic = review_topic
+        invented_idiom_mode = False
+        ordinal = {0: "بار اول", 1: "بار دوم", 2: "بار سوم", 3: "بار چهارم"}.get(review_stage, "چند بارِ قبل")
+        extra_note = (
+            f"این یه پست «مرور»ه، نه معرفی یه نکته‌ی کاملاً جدید — این نکته قبلاً آموزش داده شده "
+            f"(این {ordinal} مرورشه)، الان هدف اینه که دوباره و این بار محکم‌تر توی ذهن بمونه. "
+            f"لحنش «یادته؟ بیا یه بار دیگه با یه مثال/زاویه‌ی تازه ببینیمش» باشه، نه معرفی از صفر."
+        )
+    else:
+        topic, extra_note, invented_idiom_mode = _select_topic(
+            memory, format_name, theme_category=campaign_state.get("theme_category"),
+        )
     if not topic:
         send_admin_message(
             "🔴 هیچ موضوعی در data/topics.json پیدا نشد — پستی منتشر نشد."
@@ -366,7 +427,16 @@ def main():
         status=status,
     )
 
-    if status == "published" and not invented_idiom_mode:
+    # Was `if status == "published" and not invented_idiom_mode:` — that
+    # silently excluded illustrated_pun forever, since it always sets
+    # status="pending_manual" (handed to the admin for manual posting) and
+    # so never satisfied "== published". The topic was never marked
+    # covered, so get_next_topic() kept returning the exact same idiom on
+    # every single illustrated_pun run (confirmed: topics.json's first
+    # Idioms entry, "Break the ice", forever). Coverage should track "we
+    # picked this topic and generated content for it", not "it got posted
+    # automatically" — status is irrelevant here.
+    if not invented_idiom_mode:
         record_topic_coverage(memory, topic["topic"], format_name, today_str)
         save_json(MEMORY_PATH, memory)
 
@@ -374,4 +444,24 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        # Last-resort net: ai.py already retries transient errors 3x before
+        # raising, so anything reaching here is a real failure (expired/
+        # invalid API key, quota exhausted, a response shape change, etc).
+        # Without this, the run just crashes with a traceback GitHub Actions
+        # shows nobody unless they're actively watching the Actions tab —
+        # see send_admin_message's own fallback (prints to the log) if
+        # TELEGRAM_ADMIN_CHAT_ID isn't set. Re-raised after, so the workflow
+        # run still correctly shows as failed either way.
+        try:
+            send_admin_message(
+                f"🔴 اجرای امروز کلاً با خطا شکست خورد و هیچ پستی منتشر نشد: {exc}\n"
+                f"این با هشدارهای معمولی (مثل کمبود موضوع) فرق داره — این یعنی خودِ پایپ‌لاین "
+                f"مشکل داره (مثلاً کلید API، quota، یا یه خطای غیرمنتظره). لاگ اجرا رو توی "
+                f"تب Actions گیت‌هاب چک کن."
+            )
+        except Exception as alert_exc:
+            print("Also failed to send the admin failure alert:", alert_exc)
+        raise

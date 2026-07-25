@@ -28,6 +28,26 @@ def to_bale_html(html_text):
     return _reveal_spoiler(html_text)
 
 
+def format_poll_results_for_extra_channels(question, tally, total_votes, is_quiz=False, correct_index=None):
+    """Audit: format_quiz_for_extra_channels's vote_poll fallback tells
+    Eitaa/Bale readers to go vote on Telegram, but nothing was ever sent
+    back to them once the poll actually closed — harvest_pending_polls()
+    computes the real tally and then only saves it internally. This is the
+    follow-up message that closes that dead end: a short "results are in"
+    recap, posted to Eitaa/Bale once poll_feedback.py has the real numbers.
+    (Telegram doesn't need this — its native poll UI already shows live/
+    final results to whoever voted there, in-client.)"""
+    lines = ["📊 <b>نتیجه‌ی نظرسنجی</b>" if not is_quiz else "📊 <b>نتیجه‌ی کوییز</b>", "", question, ""]
+    for i, item in enumerate(tally):
+        marker = f"{item['text']}: {item['votes']} رأی"
+        if is_quiz and isinstance(correct_index, int) and i == correct_index:
+            marker += " ✅"
+        lines.append(marker)
+    lines.append("")
+    lines.append(f"(مجموع {total_votes} رأی)")
+    return "\n".join(lines)
+
+
 def format_quiz_for_extra_channels(question, options, is_quiz=False, explanation="",
                                     correct_index=None):
     """Text fallback for platforms without native polls (Audit #3).

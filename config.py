@@ -67,15 +67,61 @@ PENDING_POLLS_PATH = "data/pending_polls.json"
 # cron has one trigger per slot below — keep them in sync if you change this.
 POSTS_PER_DAY = 3
 
+# Expanding spaced-repetition ladder (days since the last exposure) before a
+# previously-covered topic becomes "due" for review — see
+# topic_selection.get_due_review_topic(). Roughly follows the spacing-effect
+# literature (Cepeda et al., 2006): optimal review gap is ~10-20% of how
+# long you want the memory to last, so review sooner while it's fresh.
+#
+# Deliberately short (2 stages, not 5): each topic introduced generates
+# len(REVIEW_INTERVALS_DAYS) review-events that the reserved review
+# capacity below has to absorb. With POSTS_PER_DAY slots split as
+# (fresh_per_day) + (review_capacity_per_day) = POSTS_PER_DAY, the system
+# only avoids an ever-growing backlog if:
+#     fresh_per_day * len(REVIEW_INTERVALS_DAYS) <= review_capacity_per_day
+# A longer ladder is more thorough per topic but demands much more daily
+# review capacity, which crowds out fresh content (or backs up if it
+# doesn't get that capacity) — 2 stages is the pragmatic balance for a
+# 3-post/day channel; see FRESH_TOPICS_PER_DAY below for the matching half
+# of this trade-off. Most of the retention benefit comes from going from
+# zero reviews to one; additional stages have rapidly diminishing returns.
+REVIEW_INTERVALS_DAYS = [1, 7]
+
+# After a topic clears every stage above ("graduated"), it doesn't stop
+# being reviewed forever — it drops into a standing low-frequency
+# maintenance cycle instead. This is the Bahrick "permastore" finding
+# (foreign-vocabulary retention held for decades with only occasional
+# very-long-interval refreshers) — cheap insurance against early lessons
+# quietly rotting once the channel has been running for months or years.
+MAINTENANCE_INTERVAL_DAYS = 90
+
+# How many of today's POSTS_PER_DAY runs introduce brand-new material.
+# The remaining (POSTS_PER_DAY - FRESH_TOPICS_PER_DAY) slots are reserved
+# for due reviews (see REVIEW_INTERVALS_DAYS above for why this has to be
+# kept in balance, not just set to "as many as feel right"). The first
+# slot of the day always keeps its normal weekday-scheduled format (quiz
+# day, idiom day, etc. still happen); slots beyond the fresh quota check
+# for a due review before falling back to a safe default fresh format.
+FRESH_TOPICS_PER_DAY = 1
+
 # Post a "progress recap" (format 8 in the design) instead of the day's
 # scheduled format every N published posts, so spaced repetition is a real,
 # automatic thing rather than something that only happens if you remember.
 RECAP_EVERY_N_POSTS = 14
 
 # When the number of not-yet-covered topics in topics.json drops to this
-# level or below, main.py sends an admin alert instead of only printing a
-# log line nobody reads until the channel goes silent (Audit #1).
+# level or below, main.py both alerts the admin (Audit #1) AND asks the
+# model to propose new topics itself (topic_generation.py) — the pool has
+# to be self-renewing for the channel to run for years without someone
+# hand-editing data/topics.json.
 LOW_TOPIC_WARNING_THRESHOLD = 10
+
+# How many new candidate topics to request in one go when the pool runs
+# low. Deliberately more than one topic's worth of runway (LOW_TOPIC_
+# WARNING_THRESHOLD itself) so this doesn't fire on every single run once
+# the pool dips below threshold — one successful top-up should clear the
+# warning for a while.
+AUTO_GENERATE_TOPIC_COUNT = 20
 
 # Rolling window for weekly strategy feedback (Audit Problem B).
 FEEDBACK_WINDOW_WEEKS = 8

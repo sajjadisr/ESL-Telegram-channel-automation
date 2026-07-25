@@ -15,6 +15,7 @@ import re
 from config import FEEDBACK_PATH, MEMORY_PATH, PENDING_POLLS_PATH
 from memory import load_json, save_json
 from telegram_bot import stop_poll
+from channels import broadcast_extra_channels, format_poll_results_for_extra_channels
 import analytics
 import audience_profile
 
@@ -90,6 +91,20 @@ def harvest_pending_polls():
         note_parts.append(
             "توزیع آرا: " + "، ".join(f"{t['text']}={t['votes']}" for t in tally)
         )
+
+        # Audit: vote_poll's Eitaa/Bale fallback (channels.py) points
+        # readers to "go vote on Telegram" since there's no right answer to
+        # reveal at send time — but nothing ever followed up with them
+        # once the poll actually closed. Quiz doesn't need this: its
+        # correct answer is already revealed inline in the original
+        # fallback message, so this is vote_poll-only, and only fires if
+        # the original fallback was actually sent somewhere (extra_
+        # channel_delivery is only set when broadcast_extra_channels ran).
+        if not entry.get("is_quiz") and total_votes and entry.get("extra_channel_delivery"):
+            results_text = format_poll_results_for_extra_channels(
+                entry.get("question", ""), tally, total_votes, is_quiz=False,
+            )
+            broadcast_extra_channels(results_text)
 
         feedback_list.append({
             "post_title": entry.get("question", ""),
