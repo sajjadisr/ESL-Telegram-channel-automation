@@ -2,8 +2,21 @@
   "channel_identity": "کانال آموزش زبان انگلیسی برای فارسی‌زبانان مبتدی (سطح A1-A2)",
   "target_students": "فارسی‌زبانانی که تازه شروع به یادگیری انگلیسی کرده‌اند یا در سطح پایه هستند",
   "covered_topic_history": [
-    {"topic": "Present simple tense", "format": "story_installment", "date": "2026-07-23"},
-    {"topic": "Daily routine words", "format": "story_installment", "date": "2026-07-23"}
+    {
+      "topic": "Present simple tense",
+      "format": "story_installment",
+      "date": "2026-07-23"
+    },
+    {
+      "topic": "Daily routine words",
+      "format": "story_installment",
+      "date": "2026-07-23"
+    },
+    {
+      "topic": "Present continuous tense",
+      "format": "micro_scene",
+      "date": "2026-07-25"
+    }
   ],
   "avoid": [
     "توضیح خیلی آکادمیک یا رسمی",
@@ -11,5 +24,7 @@
     "اصطلاح یا گرامر سطح متوسط به بالا (B1 و بالاتر)",
     "مثال گرامری خشک بدون قلاب/شوخی/تعامل"
   ],
-  "successful_patterns": []
+  "successful_patterns": [
+    "quiz_high: الکس می‌خواد بگه «من هر روز صبح قهوه می‌نوشم». به نظرت کدوم جمله درسته؟"
+  ]
 }
