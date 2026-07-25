@@ -144,10 +144,14 @@ def handle_poll_format(strategy, related, topic, format_name, recent_titles=None
 
     quiz_text = format_quiz_for_extra_channels(
         question, options, is_quiz=is_quiz, explanation=data.get("explanation", "") or "",
+        correct_index=correct_index,
     )
-    # Eitaa/Bale get the same question as a text fallback (no native polls
-    # there — see channels.py), so subscribers there vote in comments; we
-    # still capture the send result as delivery-health telemetry
+    # Eitaa/Bale get a text fallback, not a native poll (see channels.py) —
+    # and, as of the platform-awareness fix, no ask to "comment your
+    # answer" either, since neither platform's bot API exposes a comments
+    # feature. Quiz fallbacks reveal the correct option inline instead;
+    # vote fallbacks point to the Telegram version, where the real poll
+    # is. We still capture the send result as delivery-health telemetry
     # (analytics.py), never as engagement, since neither platform reports
     # vote counts back to us.
     extra_results = broadcast_extra_channels(quiz_text)

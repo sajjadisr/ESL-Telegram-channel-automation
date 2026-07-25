@@ -27,6 +27,31 @@ BALE_BOT_TOKEN = os.environ.get("BALE_BOT_TOKEN", "")
 # Bale chat ID — like Telegram, "@channelusername" works directly.
 BALE_CHAT_ID = os.environ.get("BALE_CHAT_ID", "@inEnglish")
 
+# --- Per-platform message-length limits (Platform-awareness audit) --------
+# text_utils.truncate_html_safe() used to take one shared 4000-char default
+# for all three platforms. That happened to be a safe number for all of
+# them, but only by coincidence — it wasn't actually derived from each
+# platform's own limit, so it couldn't be tuned per-platform if one of them
+# turned out to differ. These are now explicit and separately sourced:
+#   - Telegram: documented hard limit, 4096 chars after entities parsing
+#     (core.telegram.org/bots/api#sendmessage). CONFIRMED.
+#   - Bale: its own Bot API docs state the identical "4096 characters after
+#     entities parsing" limit (docs.python-bale-bot.ir). CONFIRMED.
+#   - Eitaa: the third-party eitaayar.ir API (used here) does not publish a
+#     character limit anywhere in its docs. 4096 is an ASSUMPTION based on
+#     it behaving like a Telegram-Bot-API-shaped service, not a confirmed
+#     spec — if Eitaa posts start getting rejected/cut server-side, shrink
+#     this first rather than assuming it's a bug elsewhere.
+TELEGRAM_MAX_MESSAGE_LEN = 4096  # confirmed
+BALE_MAX_MESSAGE_LEN = 4096      # confirmed
+EITAA_MAX_MESSAGE_LEN = 4096     # unconfirmed assumption — see comment above
+
+# Margin subtracted from the limits above before truncating (truncate_html_safe
+# nibbles a few more characters off the end to avoid splitting a tag, and this
+# leaves headroom for that so the final text never risks landing back over
+# the real limit).
+MESSAGE_LEN_SAFETY_MARGIN = 96
+
 DB_PATH = "data/posts.db"
 TOPICS_PATH = "data/topics.json"
 MEMORY_PATH = "data/memory.json"

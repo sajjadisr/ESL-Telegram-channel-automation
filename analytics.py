@@ -31,6 +31,7 @@ metrics=None on purpose: an honest "no data available", not a bug.
 
 import datetime
 
+from channels import _api_ok
 from config import ANALYTICS_PATH, REWARD_WEIGHT_ENGAGEMENT, REWARD_WEIGHT_LEARNING
 from memory import load_json, save_json
 
@@ -82,15 +83,25 @@ def _summarize_delivery(extra_channel_results):
     """extra_channel_results is whatever channels.broadcast_extra_channels
     returned: {"eitaa": response_or_None, "bale": response_or_None}. This
     is delivery health (did the send succeed), not engagement — see module
-    docstring."""
+    docstring.
+
+    Uses channels._api_ok rather than checking response.ok directly —
+    HTTP status alone isn't a reliable success signal on eitaayar.ir (its
+    docs are explicit that you also have to check the "ok" field in the
+    JSON body; see channels._api_ok's docstring). Checking only response.ok
+    here would silently record "delivered" for a send that actually
+    failed, which is exactly the failure mode this fix closes."""
     if not extra_channel_results:
         return None
     summary = {}
     for platform, response in extra_channel_results.items():
+        verdict = _api_ok(response)
         if response is None:
             summary[platform] = "not_configured_or_failed"
-        elif hasattr(response, "ok"):
-            summary[platform] = "delivered" if response.ok else "error"
+        elif verdict is True:
+            summary[platform] = "delivered"
+        elif verdict is False:
+            summary[platform] = "error"
         else:
             summary[platform] = "unknown"
     return summary

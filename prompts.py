@@ -156,6 +156,20 @@ TELEGRAM_FORMATTING = """فرمت‌بندی برای تلگرام:
 - جمله‌ها کوتاه باشن، خط‌شکنی طبیعی داشته باش (موبایل، نه دسکتاپ).
 - قلاب (شوخی/غافلگیری/تعامل) باید همون خط اول باشه، نه بعد از یه مقدمه‌چینی."""
 
+# Platform-awareness fix: this exact text (whatever the model writes here)
+# gets sent unmodified to Eitaa and Bale too (channels.broadcast_extra_channels),
+# not just Telegram — so a closing line that only makes sense on one of the
+# three quietly breaks on the other two. Without this rule, the model's only
+# guidance was LANGUAGE_BALANCE's generic permission for "one short
+# invitation to interact," which is exactly what produced a "بگو توی
+# کامنت‌ها" (say it in the comments) closer that doesn't work anywhere:
+# Eitaa and Bale have no comments feature on channel posts at all, and even
+# on Telegram it only works if the channel has a discussion group linked —
+# something this cron-only script has no way to check.
+CROSS_PLATFORM_ENGAGEMENT_RULE = """دعوت به تعامل (این متن عیناً توی ایتا و بله هم منتشر می‌شه، نه فقط تلگرام — پس هر خطی که اینجا بنویسی باید همه‌جا معنی بده):
+- هرگز به قابلیتی اشاره نکن که معلوم نیست همه‌جا وجود داشته باشه: «توی کامنت‌ها بگو»، «زیر پست بنویس»، «ریپلای کن»، «با ایموجی ری‌اکت بده». نه ایتا نه بله زیر پست‌های کانال کامنت ندارن، و حتی تلگرام هم این قابلیت رو فقط وقتی داره که یه گروه گفتگو بهش لینک شده باشه — که معلوم نیست باشه.
+- اگه می‌خوای دعوت به تعامل کنی، یه چیز خودکفا بساز که به هیچ قابلیتی نیاز نداشته باشه: یه سوال خطاب به خودِ خواننده برای فکر کردن (نه جایی جواب دادن)، دعوت به امتحان‌کردنِ همون جمله در موقعیت واقعی، یا دعوت به فوروارد کردن برای یه دوست."""
+
 TIER_INSTRUCTIONS = """از سیستم لایه‌ای زیر استفاده کن (هر سه اختیاریه ولی معمولاً هر سه لازمن):
 🟢 نکته‌ی اصلی — همون چیزی که همین امروز قابل استفاده‌ست، بدون نیاز به تحلیل.
 🟡 توی بافت — همون مورد توی یه جمله‌ی ساده و واقعی؛ این لایه باید ۹۰ تا ۹۸ درصدش کلمات آشنا باشه، فقط همین یه مورد جدید باشه.
@@ -227,6 +241,8 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
 
 {TELEGRAM_FORMATTING}
 
+{CROSS_PLATFORM_ENGAGEMENT_RULE}
+
 درس‌های مرتبط قبلی (برای جلوگیری از تکرار):
 {related_text}
 
@@ -254,6 +270,7 @@ def build_review_prompt(content, format_name):
 ۶. طول مناسب (نه خیلی کوتاه، نه خیلی بلند).
 ۷. تعادل زبان: آیا بیشتر متن (روایت/دیالوگ اصلی) واقعاً به انگلیسیه، و فارسی فقط برای گلاسِ کلمات سخت یا یه جمله‌ی کوتاه به کار رفته؟ اگه بیشتر پست به فارسی روایت شده و فقط یکی-دو جمله‌ی انگلیسی توش قایم شده، این باید رد بشه (ok: false).
 ۸. آیا متن هیچ کاراکتر عجیب یا از یه زبان/الفبای دیگه (نه فارسی، نه انگلیسی، نه اموجی معمولی) توش نیست؟ اگه هست، رد کن.
+۹. این متن عیناً توی ایتا و بله هم منتشر می‌شه. آیا جایی از متن به یه قابلیت اشاره می‌کنه که معلوم نیست همه‌جا وجود داشته باشه — مثل «توی کامنت‌ها بگو»، «زیر پست بنویس»، «ریپلای کن»، «ری‌اکت بده»؟ اگه هست، رد کن (ok: false).
 
 متن:
 \"\"\"{content}\"\"\"

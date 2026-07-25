@@ -80,7 +80,69 @@ original `sendPoll` bug from the failed run.
    SQLite file, once volume grows.
 
 ## Not changed
-- `channels.py` was already doing the right thing (per-platform
-  try/except, `timeout=20` on every call) — used as the reference pattern
-  for the Telegram/Gemini fixes above.
 - Secrets hygiene was already good (audit confirmed no changes needed).
+
+## 🔴 Platform-awareness audit (Eitaa/Bale) — supersedes the "channels.py
+   was already doing the right thing" note below
+This round looked specifically at whether the code treats Telegram, Eitaa,
+and Bale as the three genuinely different platforms they are, rather than
+as one API with two clones. The earlier note that `channels.py` was
+"already doing the right thing" was true for retries/timeouts, but missed
+something more specific — both fixes below are grounded in each platform's
+actual, verified behavior, not assumptions:
+
+1. **HTTP-status-only success check was wrong for Eitaa/Bale.**
+   `channels._send_platform` and `analytics._summarize_delivery` both only
+   checked `response.ok` (HTTP status). eitaayar.ir's own docs are explicit
+   that a failed send isn't reliably distinguished from a successful one by
+   HTTP status alone — you have to check the `"ok"` field in the JSON body,
+   which can be `false` on an otherwise-normal-looking response. Bale's Bot
+   API mirrors Telegram's `{"ok": ..., "description": ...}` envelope
+   closely enough that the same defensive check is worth having there too.
+   Concretely, this means a silent failure (bad chat ID, revoked token,
+   etc.) on Eitaa or Bale could previously get logged as `"delivered"`
+   everywhere (admin alert, analytics, pending-poll delivery health) even
+   though nothing was actually posted.
+   - Added `channels._api_ok()` / `channels._api_error_detail()`, which
+     check the JSON body in addition to HTTP status, with a clear fallback
+     to "trust the HTTP status" when the body isn't JSON or has no `"ok"`
+     key. `_send_platform`, `send_eitaa`, `send_bale`, and
+     `analytics._summarize_delivery` all now go through this instead of
+     checking `.ok` directly.
+   - **Telegram's own path (`telegram_bot.py`) was deliberately left
+     alone** — its Bot API reliably matches HTTP status to the `"ok"`
+     field, so `raise_for_status()` there is already the correct,
+     platform-specific check. Routing it through the looser Eitaa/Bale
+     check would only risk hiding a real Telegram error.
+   - Per-platform message-length limits (`config.py`) are now named
+     constants instead of one shared magic `4000` — `TELEGRAM_MAX_MESSAGE_LEN`
+     / `BALE_MAX_MESSAGE_LEN` (both 4096, confirmed against each platform's
+     own docs) and `EITAA_MAX_MESSAGE_LEN` (4096, explicitly flagged as an
+     *unconfirmed assumption* — eitaayar.ir doesn't publish one).
+
+2. **"Comment your answer" CTA assumed a feature none of the three
+   platforms are confirmed to have.** `channels.format_quiz_for_extra_channels`
+   (the Eitaa/Bale text fallback for polls, since neither platform has
+   native polls) closed with "👇 گزینه‌ات رو توی کامنت‌ها بگو!" (tell us in
+   the comments). Neither Eitaa's nor Bale's bot API exposes anything like
+   a comments/discussion feature on channel posts, and even on Telegram
+   that only works if the channel has a discussion group linked — a
+   channel-level setting this cron-only script has no way to check. The
+   same root cause also let the *AI-generated* text for ordinary posts
+   (which broadcasts unmodified to all three platforms via
+   `send_message` + `broadcast_extra_channels`) invent a comment-dependent
+   closing line on its own — `prompts.LANGUAGE_BALANCE` only ever gave it
+   generic permission for "one short invitation to interact," with no
+   constraint on what that invitation could assume existed.
+   - `format_quiz_for_extra_channels` now takes `correct_index`: for a quiz,
+     the correct option is revealed inline via the existing `<tg-spoiler>`
+     convention instead of asking for an answer nobody can act on; for a
+     vote (no right answer to reveal), the closing line now points readers
+     to the Telegram channel, where the real, live poll exists.
+   - Added `prompts.CROSS_PLATFORM_ENGAGEMENT_RULE`, wired into
+     `build_generation_prompt`, telling the model that its output is
+     broadcast unmodified to Eitaa and Bale too and to avoid any CTA
+     ("comment below," "reply," "react") that assumes a feature it can't
+     guarantee — with self-contained alternatives suggested instead.
+   - Added a matching check (`۹.`) to `build_review_prompt`'s checklist as
+     defense-in-depth, in case the generation pass still produces one.
