@@ -1,3 +1,4 @@
+import re
 import sqlite3
 
 from ai import find_stray_script_chars
@@ -136,8 +137,33 @@ def remediate_stray_chars_in_db():
     return fixed
 
 
+_PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
+_EPISODE_NUMBER_RE = re.compile(r"قسمت[\s\u200c]*([۰-۹0-9]+)")
+
+
+def _extract_episode_number(content):
+    """Pull the episode number the model actually wrote into a story post
+    (e.g. 'قسمت ۳') rather than assuming posts are gapless/sequential.
+    Returns None if no number is found."""
+    match = _EPISODE_NUMBER_RE.search(content or "")
+    if not match:
+        return None
+    try:
+        return int(match.group(1).translate(_PERSIAN_DIGITS))
+    except ValueError:
+        return None
+
+
 def sync_story_state_from_db():
-    """Repair story.json from published story_installment rows (Audit #2)."""
+    """Repair story.json from published story_installment rows (Audit #2).
+
+    Uses the episode number actually embedded in the post text, not just a
+    row count — the two rows currently in posts.db are labeled 'قسمت ۲' and
+    'قسمت ۳' (episode 1 was lost in the original duplicate-run incident), so
+    counting rows would give last_installment=2 and cause the next post to
+    be generated as 'قسمت ۳' again, duplicating a number already published.
+    Falls back to row count only if no post has a parseable episode number.
+    """
     conn = get_conn()
     rows = conn.execute(
         "SELECT content FROM posts WHERE format = 'story_installment' AND status = 'published' "
@@ -147,7 +173,10 @@ def sync_story_state_from_db():
     if not rows:
         return {"last_installment": 0, "recent_summary": ""}
     last_content = rows[-1][0]
+    numbers = [_extract_episode_number(r[0]) for r in rows]
+    numbers = [n for n in numbers if n is not None]
+    last_installment = max(numbers) if numbers else len(rows)
     return {
-        "last_installment": len(rows),
+        "last_installment": last_installment,
         "recent_summary": last_content[:200],
     }
