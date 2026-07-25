@@ -63,6 +63,10 @@ STORY_PATH = "data/story.json"
 # feedback.json (see poll_feedback.py / Audit #5).
 PENDING_POLLS_PATH = "data/pending_polls.json"
 
+# How many posts main.py will publish per calendar day. daily_post.yml's
+# cron has one trigger per slot below — keep them in sync if you change this.
+POSTS_PER_DAY = 3
+
 # Post a "progress recap" (format 8 in the design) instead of the day's
 # scheduled format every N published posts, so spaced repetition is a real,
 # automatic thing rather than something that only happens if you remember.

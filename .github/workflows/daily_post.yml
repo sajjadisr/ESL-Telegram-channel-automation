@@ -2,7 +2,12 @@ name: Daily Post
 
 on:
   schedule:
+    # 3 runs/day to match config.POSTS_PER_DAY — keep these two in sync if
+    # you change that value. Times are UTC; roughly 09:00 / 15:00 / 21:00
+    # Iran time (UTC+3:30).
     - cron: "30 5 * * *"
+    - cron: "30 11 * * *"
+    - cron: "30 17 * * *"
   workflow_dispatch: {}
 
 jobs:

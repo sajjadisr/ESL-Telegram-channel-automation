@@ -3,11 +3,11 @@ import json
 
 from config import (
     MEMORY_PATH, STRATEGY_PATH, SCHEDULE_PATH, STORY_PATH,
-    RECAP_EVERY_N_POSTS, LOW_TOPIC_WARNING_THRESHOLD,
+    RECAP_EVERY_N_POSTS, LOW_TOPIC_WARNING_THRESHOLD, POSTS_PER_DAY,
 )
 from database import (
     save_post, search_related_posts, count_posts, get_titles_for_recap,
-    get_recent_posts, has_post_on_date, remediate_stray_chars_in_db,
+    get_recent_posts, count_posts_on_date, remediate_stray_chars_in_db,
     sync_story_state_from_db,
 )
 from memory import load_json, save_json
@@ -220,8 +220,12 @@ def main():
         print("Remediated stray characters in posts:", fixed)
 
     today_str = str(datetime.date.today())
-    if has_post_on_date(today_str):
-        print(f"یک پست برای {today_str} از قبل ثبت شده؛ این اجرا برای جلوگیری از تکرار رد می‌شه.")
+    posted_today = count_posts_on_date(today_str)
+    if posted_today >= POSTS_PER_DAY:
+        print(
+            f"امروز ({today_str}) قبلاً {posted_today} پست از {POSTS_PER_DAY} پست مجاز روزانه "
+            f"منتشر شده؛ این اجرا رد می‌شه."
+        )
         return
 
     memory = load_json(MEMORY_PATH, {})

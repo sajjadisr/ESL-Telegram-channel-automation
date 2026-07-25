@@ -96,11 +96,11 @@ def count_posts(published_only=False):
     return n
 
 
-def has_post_on_date(date_str):
+def count_posts_on_date(date_str):
     conn = get_conn()
     n = conn.execute("SELECT COUNT(*) FROM posts WHERE date = ?", (date_str,)).fetchone()[0]
     conn.close()
-    return n > 0
+    return n
 
 
 def get_titles_for_recap(limit=8):
