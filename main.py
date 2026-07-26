@@ -12,7 +12,10 @@ from database import (
     sync_story_state_from_db,
 )
 from memory import load_json, save_json
-from ai import generate_content, generate_json, review_content, find_stray_script_chars, generate_image
+from ai import (
+    generate_content, generate_json, review_content, find_stray_script_chars,
+    generate_image, GeminiAuthError,
+)
 from prompts import (
     FORMATS, build_generation_prompt, build_review_prompt, build_poll_prompt,
     build_scene_prompt, compose_image_prompt,
@@ -499,20 +502,47 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except GeminiAuthError as exc:
+        # Distinct from the generic handler below: this is specifically a
+        # broken/rejected credential (not quota, not network, not a code
+        # bug), most likely Google having switched this account's Gemini
+        # keys to the "AQ." format, which the generativelanguage.googleapis.com
+        # REST API currently rejects with a 401 even through the official
+        # SDK. Names the actual fix instead of sending the generic "check
+        # the log" message, so whoever reads this alert doesn't have to
+        # re-diagnose it from scratch.
+        try:
+            send_admin_message(
+                "🔴 اجرای امروز شکست خورد: خطای احراز هویت Gemini (نه quota، نه شبکه).\n\n"
+                f"{exc}\n\n"
+                "این معمولاً یعنی گوگل کلید رو به فرمت جدید «AQ.» تغییر داده (به‌جای «AIza»)، "
+                "و اون فرمت جدید فعلاً توسط API رد میشه — حتی از طریق SDK رسمی.\n\n"
+                "برای رفع:\n"
+                "۱) توی Google AI Studio پیشوند کلید رو چک کن — اگر با AQ. شروع میشه، "
+                "همینه.\n"
+                "۲) یه کلید جدید بساز و سکرت GEMINI_API_KEY رو توی گیت‌هاب آپدیت کن (بعضی "
+                "وقتا کلید جدید بازم AIza میده).\n"
+                "۳) اگه یه اکانت گوگل جداگانه داری، کلیدش رو به‌عنوان سکرت جدید "
+                "GEMINI_API_KEY_BACKUP اضافه کن — پایپ‌لاین خودکار روش fallback می‌کنه."
+            )
+        except Exception as alert_exc:
+            print("Also failed to send the admin failure alert:", alert_exc)
+        raise
     except Exception as exc:
         # Last-resort net: ai.py already retries transient errors 3x before
-        # raising, so anything reaching here is a real failure (expired/
-        # invalid API key, quota exhausted, a response shape change, etc).
-        # Without this, the run just crashes with a traceback GitHub Actions
-        # shows nobody unless they're actively watching the Actions tab —
-        # see send_admin_message's own fallback (prints to the log) if
-        # TELEGRAM_ADMIN_CHAT_ID isn't set. Re-raised after, so the workflow
-        # run still correctly shows as failed either way.
+        # raising, so anything reaching here is a real failure (quota
+        # exhausted, a response shape change, a code bug, etc — auth errors
+        # are handled separately above). Without this, the run just crashes
+        # with a traceback GitHub Actions shows nobody unless they're
+        # actively watching the Actions tab — see send_admin_message's own
+        # fallback (prints to the log) if TELEGRAM_ADMIN_CHAT_ID isn't set.
+        # Re-raised after, so the workflow run still correctly shows as
+        # failed either way.
         try:
             send_admin_message(
                 f"🔴 اجرای امروز کلاً با خطا شکست خورد و هیچ پستی منتشر نشد: {exc}\n"
                 f"این با هشدارهای معمولی (مثل کمبود موضوع) فرق داره — این یعنی خودِ پایپ‌لاین "
-                f"مشکل داره (مثلاً کلید API، quota، یا یه خطای غیرمنتظره). لاگ اجرا رو توی "
+                f"مشکل داره (مثلاً quota، یا یه خطای غیرمنتظره). لاگ اجرا رو توی "
                 f"تب Actions گیت‌هاب چک کن."
             )
         except Exception as alert_exc:

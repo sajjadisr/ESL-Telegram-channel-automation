@@ -6,9 +6,58 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
 
-from config import GEMINI_API_KEY
+from config import GEMINI_API_KEY, GEMINI_API_KEY_BACKUP
+
+
+class GeminiAuthError(RuntimeError):
+    """Raised when every configured Gemini key fails with an authentication
+    error (invalid/revoked key, or the "AQ." vs "AIza" key-format problem —
+    see config.GEMINI_API_KEY_BACKUP) rather than a transient issue.
+
+    Kept distinct from a generic API failure so:
+    - _call_model / _generate_image_with_model can stop retrying immediately
+      instead of burning ~18s of backoff on a call that will fail identically
+      every time, and
+    - main.py's top-level handler can send an admin alert that names the
+      actual, actionable cause instead of a generic "something broke, check
+      the log" message.
+    """
+
+
+# 401 is the code Google's API returns for every one of these; the reason
+# strings are matched too since some client-side error shapes only surface
+# them in the message text, not a structured field.
+_AUTH_ERROR_MARKERS = (
+    "ACCESS_TOKEN_TYPE_UNSUPPORTED",  # the "AQ." key vs generativelanguage.googleapis.com problem
+    "API_KEY_INVALID",
+    "API key not valid",
+    "UNAUTHENTICATED",
+)
+
+
+def _is_auth_error(exc):
+    """True if `exc` looks like a broken/invalid credential rather than a
+    transient (network, quota, 5xx) failure. Checked against both the HTTP
+    status code and known reason strings, since this SDK doesn't expose a
+    single consistent field for it across error types."""
+    if exc is None:
+        return False
+    if getattr(exc, "code", None) == 401:
+        return True
+    text = str(exc)
+    return any(marker in text for marker in _AUTH_ERROR_MARKERS)
+
 
 _client = genai.Client(api_key=GEMINI_API_KEY)
+
+# Each entry tried in order. A second key (GEMINI_API_KEY_BACKUP, ideally
+# from a wholly separate Google account) only ever gets used if the primary
+# key fails with an auth error specifically — transient errors on the
+# primary still retry on the primary, same as before. See GEMINI_API_KEY_BACKUP
+# in config.py for why this exists.
+_clients = [("primary key", _client)]
+if GEMINI_API_KEY_BACKUP:
+    _clients.append(("backup key", genai.Client(api_key=GEMINI_API_KEY_BACKUP)))
 
 # Two tiers, used deliberately for different jobs:
 # - DRAFT_MODEL (flash-lite): every DRAFT generation call. Flash-lite has a
@@ -52,24 +101,41 @@ _RETRY_BASE_DELAY_SECONDS = 3
 def _call_model(model_name, prompt):
     """Call the given Gemini model with retry-with-backoff for transient
     errors (quota blips, network errors, Google-side 5xx). Raises the last
-    error if every attempt fails — callers decide how to degrade (Audit #4)."""
+    error if every attempt fails — callers decide how to degrade (Audit #4).
+
+    An auth error (bad/expired/wrong-format key) is NOT retried on the same
+    key — it will fail identically every time, so retrying just burns time
+    and clutters the log. Instead it falls through to the next configured
+    client (see GEMINI_API_KEY_BACKUP), and only raises GeminiAuthError once
+    every client has failed that way."""
     last_exc = None
-    for attempt in range(1, MAX_API_ATTEMPTS + 1):
-        try:
-            response = _client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(http_options=_HTTP_OPTIONS),
-            )
-            return (response.text or "").strip()
-        except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
-            last_exc = exc
-            if attempt < MAX_API_ATTEMPTS:
-                print(f"Gemini call to {model_name} failed (attempt {attempt}/{MAX_API_ATTEMPTS}): "
-                      f"{exc}. Retrying...")
-                time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
-            else:
-                print(f"Gemini call to {model_name} failed after {MAX_API_ATTEMPTS} attempts: {exc}")
+    for client_label, client in _clients:
+        for attempt in range(1, MAX_API_ATTEMPTS + 1):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(http_options=_HTTP_OPTIONS),
+                )
+                return (response.text or "").strip()
+            except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+                last_exc = exc
+                if _is_auth_error(exc):
+                    print(f"Gemini call to {model_name} failed with an auth error on the "
+                          f"{client_label} (not retrying this key): {exc}")
+                    break  # try the next client, if any — see loop below
+                if attempt < MAX_API_ATTEMPTS:
+                    print(f"Gemini call to {model_name} failed (attempt {attempt}/{MAX_API_ATTEMPTS}) "
+                          f"on the {client_label}: {exc}. Retrying...")
+                    time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
+                else:
+                    print(f"Gemini call to {model_name} failed after {MAX_API_ATTEMPTS} attempts "
+                          f"on the {client_label}: {exc}")
+    if _is_auth_error(last_exc):
+        raise GeminiAuthError(
+            f"Gemini call to {model_name} failed with an authentication error on "
+            f"{'every configured key' if len(_clients) > 1 else 'the configured key'}: {last_exc}"
+        ) from last_exc
     raise last_exc
 
 
@@ -93,32 +159,42 @@ def _generate_image_with_model(model_name, prompt):
     hard API failure; generate_image below decides whether to try the
     fallback model."""
     last_exc = None
-    for attempt in range(1, MAX_API_ATTEMPTS + 1):
-        try:
-            response = _client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE"],
-                    image_config=types.ImageConfig(aspect_ratio="1:1"),
-                    http_options=_HTTP_OPTIONS,
-                ),
-            )
-            for part in response.parts or []:
-                if getattr(part, "inline_data", None) is not None:
-                    return part.inline_data.data
-            print(f"generate_image ({model_name}): responded with no image part "
-                  f"(likely a safety block).")
-            return None
-        except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
-            last_exc = exc
-            if attempt < MAX_API_ATTEMPTS:
-                print(f"Gemini image call to {model_name} failed (attempt "
-                      f"{attempt}/{MAX_API_ATTEMPTS}): {exc}. Retrying...")
-                time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
-            else:
-                print(f"Gemini image call to {model_name} failed after "
-                      f"{MAX_API_ATTEMPTS} attempts: {exc}")
+    for client_label, client in _clients:
+        for attempt in range(1, MAX_API_ATTEMPTS + 1):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE"],
+                        image_config=types.ImageConfig(aspect_ratio="1:1"),
+                        http_options=_HTTP_OPTIONS,
+                    ),
+                )
+                for part in response.parts or []:
+                    if getattr(part, "inline_data", None) is not None:
+                        return part.inline_data.data
+                print(f"generate_image ({model_name}): responded with no image part "
+                      f"(likely a safety block).")
+                return None
+            except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+                last_exc = exc
+                if _is_auth_error(exc):
+                    print(f"Gemini image call to {model_name} failed with an auth error on "
+                          f"the {client_label} (not retrying this key): {exc}")
+                    break
+                if attempt < MAX_API_ATTEMPTS:
+                    print(f"Gemini image call to {model_name} failed (attempt "
+                          f"{attempt}/{MAX_API_ATTEMPTS}) on the {client_label}: {exc}. Retrying...")
+                    time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
+                else:
+                    print(f"Gemini image call to {model_name} failed after "
+                          f"{MAX_API_ATTEMPTS} attempts on the {client_label}: {exc}")
+    if _is_auth_error(last_exc):
+        raise GeminiAuthError(
+            f"Gemini image call to {model_name} failed with an authentication error on "
+            f"{'every configured key' if len(_clients) > 1 else 'the configured key'}: {last_exc}"
+        ) from last_exc
     raise last_exc
 
 
@@ -132,10 +208,17 @@ def generate_image(prompt):
     because it returned a normal response with no image part. Only after
     BOTH models fail does this give up.
 
-    Unlike _call_model-based functions, this never raises — it always
-    returns bytes or None, since "try the next thing" already happened
-    internally. handle_image_format still wraps the call in a try/except
-    as a last-resort net, but shouldn't need it in practice."""
+    Unlike _call_model-based functions, this never raises for a normal
+    model-level failure (safety block, 5xx, timeout) — it always returns
+    bytes or None, since "try the next thing" already happened internally.
+    handle_image_format still wraps the call in a try/except as a
+    last-resort net, but shouldn't need it in practice.
+
+    Deliberate exception: GeminiAuthError still propagates uncaught. A
+    broken credential isn't a "this one model had a bad day" problem — it
+    means every Gemini call in the run is about to fail the same way — so
+    swallowing it here would just make the image quietly disappear every
+    day instead of surfacing the real, fixable cause to the admin alert."""
     try:
         image_bytes = _generate_image_with_model(IMAGE_MODEL, prompt)
     except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
@@ -195,9 +278,17 @@ def generate_json(prompt, fallback=None, strict=False):
     failure mode. Used for the quiz/poll path (Audit #4), which has no other
     review step — a parse failure there should surface as an error the admin
     can see, not silently publish a generic placeholder question.
+
+    GeminiAuthError always re-raises regardless of `strict`: a broken
+    credential means every Gemini call this run is failing the same way, not
+    just this one — folding that into a generic "review failed, using
+    fallback" would hide the one failure mode that's actually worth a
+    specific admin alert (see main.py's top-level handler).
     """
     try:
         raw = generate_content_smart(prompt)
+    except GeminiAuthError:
+        raise
     except Exception as exc:
         if strict:
             raise

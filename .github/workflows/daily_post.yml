@@ -27,6 +27,11 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # Optional — a second Gemini key, ideally from a different Google
+          # account, only ever used if GEMINI_API_KEY fails with an auth
+          # error (see ai.GeminiAuthError). Leave unset to run with just the
+          # one key, same as before.
+          GEMINI_API_KEY_BACKUP: ${{ secrets.GEMINI_API_KEY_BACKUP }}
           # Optional — leave the secret unset and this is just an empty string,
           # which the code treats the same as "not configured".
           TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}

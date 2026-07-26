@@ -4,6 +4,17 @@ TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHANNEL_ID = os.environ["TELEGRAM_CHANNEL_ID"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
+# Optional second Gemini API key, ideally from a DIFFERENT Google account/
+# project than GEMINI_API_KEY. Google has repeatedly, without warning,
+# switched individual accounts over to issuing only "AQ."-prefixed API keys
+# instead of the classic "AIza" format — and those AQ. keys get rejected by
+# generativelanguage.googleapis.com with a 401 (see ai.GeminiAuthError). This
+# is an account-level issue, not something fixable in code, so the only real
+# mitigation is a second, independent credential: if the primary key starts
+# failing with an auth error, ai.py tries this one before giving up. Leave
+# unset to run with just the one key (existing behavior, unchanged).
+GEMINI_API_KEY_BACKUP = os.environ.get("GEMINI_API_KEY_BACKUP", "").strip()
+
 # Optional. Your own Telegram numeric chat ID (message @userinfobot to get it).
 # Used to hand you image-generation prompts to paste into an image tool
 # yourself (this project never calls an image generator), AND for low-topic-
