@@ -95,7 +95,6 @@ MEMORY_PATH = "data/memory.json"
 STRATEGY_PATH = "data/strategy.json"
 FEEDBACK_PATH = "data/feedback.json"
 SCHEDULE_PATH = "data/format_schedule.json"
-STORY_PATH = "data/story.json"
 # Polls/quizzes that have been sent but not yet closed+harvested for
 # feedback.json (see poll_feedback.py / Audit #5).
 PENDING_POLLS_PATH = "data/pending_polls.json"

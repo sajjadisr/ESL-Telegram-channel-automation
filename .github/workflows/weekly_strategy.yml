@@ -29,6 +29,9 @@ jobs:
           TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
 
       - name: Commit updated strategy
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
         run: |
           git config user.name "channel-bot"
           git config user.email "actions@github.com"
@@ -47,4 +50,12 @@ jobs:
             sleep $((RANDOM % 10 + 5))
           done
           echo "::error::Could not push after 5 attempts."
+          if [ -n "$TELEGRAM_ADMIN_CHAT_ID" ] && [ -n "$TELEGRAM_BOT_TOKEN" ]; then
+            curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -d chat_id="${TELEGRAM_ADMIN_CHAT_ID}" \
+              -d text="🔴 آپدیت استراتژی/برنامه‌ی هفتگی بعد از ۵ بار تلاش روی گیت push نشد — data/strategy.json و data/format_schedule.json فعلاً روی origin/main قدیمی موندن." \
+              > /dev/null || echo "::warning::Admin alert send also failed."
+          else
+            echo "::warning::TELEGRAM_ADMIN_CHAT_ID or TELEGRAM_BOT_TOKEN not set — no admin alert sent for the push failure."
+          fi
           exit 1

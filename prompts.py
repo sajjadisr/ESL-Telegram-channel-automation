@@ -57,19 +57,6 @@ FORMATS = {
             "تصویر قراره جوک رو حمل کنه، متن فقط توضیح کوتاهش می‌ده."
         ),
     },
-    "story_installment": {
-        "label": "قسمت داستان دنباله‌دار",
-        "needs_image": False,
-        "needs_poll": None,
-        "use_tiers": False,
-        "guidance": (
-            "این قسمت بعدیِ داستان دنباله‌داره، با همون دو شخصیت ثابت (مشخصاتشون پایین اومده). خودِ داستان — "
-            "روایت و دیالوگ شخصیت‌ها — باید به انگلیسیِ ساده (A1–A2) نوشته بشه، نه فارسی؛ فارسی فقط برای گلاسِ "
-            "کلمات سخت یا یه جمله‌ی کوتاه در ابتدا/انتها مجازه (طبق قانون تعادل زبان). یه موقعیت کوتاه و "
-            "قابل‌ارتباط بساز که توش موضوع امروز به‌طور طبیعی پیش بیاد. آخرش رو با یه کنجکاوی کوچیک برای قسمت "
-            "بعد تموم کن."
-        ),
-    },
     "spot_mistake": {
         "label": "پیدا کردن اشتباه",
         "needs_image": False,
@@ -209,7 +196,7 @@ def _format_related(related_posts):
 
 
 def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
-                             extra_note="", story=None, recap_titles=None,
+                             extra_note="", recap_titles=None,
                              campaign_note="", profile_note=""):
     """For every text-post format (everything except quiz/vote_poll, which are
     handled by build_poll_prompt because they need structured JSON, not prose).
@@ -222,14 +209,6 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
     related_text = _format_related(related_posts)
 
     context_block = ""
-    if format_name == "story_installment" and story:
-        chars = "\n".join(f"- {c['name']}: {c['role']}" for c in story.get("characters", []))
-        context_block = f"""
-شخصیت‌های ثابت داستان (دقیقاً همینا رو نگه دار، شخصیت جدید اضافه نکن):
-{chars}
-قسمت قبلی چی شد: {story.get('recent_summary') or 'این اولین قسمته.'}
-شماره‌ی این قسمت: {story.get('last_installment', 0) + 1}
-"""
     if format_name == "progress_recap" and recap_titles:
         items = "\n".join(f"- {t}" for t in recap_titles)
         context_block = f"""
@@ -279,7 +258,7 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
 
 {CROSS_PLATFORM_ENGAGEMENT_RULE}
 
-درس‌های مرتبط قبلی (برای جلوگیری از تکرار):
+پست‌های اخیر کانال (چه هم‌موضوع چه موضوع‌های دیگه — برای جلوگیری از تکرار):
 {related_text}
 
 موضوع درس امروز: {topic['topic']} (سطح: {topic['level']}, دسته: {topic['category']})
@@ -287,7 +266,7 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
 قوانین کلی:
 - پست کوتاه باشه (حداکثر حدود ۳۰۰ تا ۴۰۰ کلمه؛ فرمت‌های تصویری و پازلی باید کوتاه‌تر باشن).
 - هر پست باید یه قلاب واقعی داشته باشه — صرفاً نشون‌دادن کاربرد درست کافی نیست.
-- از تکرار محتوای درس‌های قبلی خودداری کن.
+- از تکرار محتوای درس‌های قبلی خودداری کن. این شامل تکرار همون مثال/جمله/شوخیِ پست‌های بالا هم می‌شه، حتی اگه موضوع امروز با موضوع اون پست فرق داشته باشه — مثلاً اگه یه پست قبلی برای توضیح یه نکته از «قهوه خوردن هر روز صبح» استفاده کرده، امروز (حتی برای یه نکته‌ی گرامری/واژگانی متفاوت) سراغ یه موقعیت و مثال کاملاً تازه برو، نه همون سناریو با یه لباس دیگه.
 {("توضیح تکمیلی برای اصلاح: " + extra_note) if extra_note else ""}
 
 فقط متن نهایی پست رو بنویس (با تگ‌های HTML لازم)، بدون توضیح اضافه یا مقدمه‌چینی."""

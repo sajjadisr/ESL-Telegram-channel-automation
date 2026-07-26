@@ -11,6 +11,11 @@
       "date": "2026-07-26",
       "format": "vocab_spotlight",
       "title": "Food and restaurant vocabulary"
+    },
+    {
+      "date": "2026-07-26",
+      "format": "spot_mistake",
+      "title": "Daily routine words"
     }
   ]
 }

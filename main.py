@@ -2,14 +2,13 @@ import datetime
 import json
 
 from config import (
-    MEMORY_PATH, STRATEGY_PATH, SCHEDULE_PATH, STORY_PATH,
+    MEMORY_PATH, STRATEGY_PATH, SCHEDULE_PATH,
     RECAP_EVERY_N_POSTS, LOW_TOPIC_WARNING_THRESHOLD, AUTO_GENERATE_TOPIC_COUNT,
     POSTS_PER_DAY, FRESH_TOPICS_PER_DAY,
 )
 from database import (
-    save_post, search_related_posts, count_posts, get_titles_for_recap,
-    get_recent_posts, count_posts_on_date, remediate_stray_chars_in_db,
-    sync_story_state_from_db,
+    save_post, search_related_posts, context_posts_for_generation, count_posts,
+    get_titles_for_recap, get_recent_posts, count_posts_on_date, remediate_stray_chars_in_db,
 )
 from memory import load_json, save_json
 from ai import (
@@ -84,12 +83,12 @@ def resolve_today_format():
 
 
 def generate_reviewed_text(memory, strategy, related, topic, format_name,
-                            story=None, recap_titles=None, extra_note="",
+                            recap_titles=None, extra_note="",
                             campaign_note="", profile_note=""):
     def _draft(note=""):
         prompt = build_generation_prompt(
             memory, strategy, related, topic, format_name,
-            extra_note=note, story=story, recap_titles=recap_titles,
+            extra_note=note, recap_titles=recap_titles,
             campaign_note=campaign_note, profile_note=profile_note,
         )
         return generate_content(prompt)
@@ -193,7 +192,7 @@ def handle_poll_format(strategy, related, topic, format_name, recent_titles=None
     return json.dumps(data, ensure_ascii=False)
 
 
-def handle_image_format(memory, strategy, related, topic, format_name, story=None, extra_note="",
+def handle_image_format(memory, strategy, related, topic, format_name, extra_note="",
                          campaign_note="", profile_note=""):
     """Auto-generates and posts the image (Audit: this used to hand the
     finished prompt to the admin to paste into an image tool by hand, every
@@ -211,7 +210,7 @@ def handle_image_format(memory, strategy, related, topic, format_name, story=Non
     get_recent_posts/count_posts/recap eligibility, which all filter on
     status='published')."""
     caption = generate_reviewed_text(memory, strategy, related, topic, format_name,
-                                      story=story, extra_note=extra_note,
+                                      extra_note=extra_note,
                                       campaign_note=campaign_note, profile_note=profile_note)
 
     scene_prompt = build_scene_prompt(topic["topic"])
@@ -313,12 +312,6 @@ def main():
     memory = load_json(MEMORY_PATH, {})
     migrate_covered_topics(memory)
     strategy = load_json(STRATEGY_PATH, {})
-    story = load_json(STORY_PATH, {"characters": [], "last_installment": 0, "recent_summary": ""})
-
-    synced = sync_story_state_from_db()
-    if synced["last_installment"] > story.get("last_installment", 0):
-        story.update(synced)
-        save_json(STORY_PATH, story)
 
     # Weakness 5 (campaigns) / Weakness 1 (audience profile) context —
     # computed once per run, reused by whichever branch below actually
@@ -444,7 +437,7 @@ def main():
         )
         return
 
-    related = search_related_posts(topic["topic"], category=topic.get("category"))
+    related = context_posts_for_generation(topic["topic"], category=topic.get("category"))
 
     if fmt["needs_image"]:
         # handle_image_format now auto-generates and posts the image itself
@@ -453,21 +446,16 @@ def main():
         # this run rather than being hardcoded to "pending_manual"/None.
         content, status, extra_results = handle_image_format(
             memory, strategy, related, topic, format_name,
-            story=story, extra_note=extra_note,
+            extra_note=extra_note,
             campaign_note=campaign_note, profile_note=profile_note,
         )
     else:
         content = generate_reviewed_text(memory, strategy, related, topic, format_name,
-                                          story=story, extra_note=extra_note,
+                                          extra_note=extra_note,
                                           campaign_note=campaign_note, profile_note=profile_note)
         send_message(content)
         extra_results = broadcast_extra_channels(content)
         status = "published"
-
-        if format_name == "story_installment":
-            story["last_installment"] = story.get("last_installment", 0) + 1
-            story["recent_summary"] = content[:200]
-            save_json(STORY_PATH, story)
 
     campaigns.record_post(campaign_state, today_str, format_name, topic["topic"])
     analytics.record_text_post(format_name, topic["topic"], extra_channel_results=extra_results)
