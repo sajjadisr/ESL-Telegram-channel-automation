@@ -50,6 +50,53 @@ def send_message(text, chat_id=None):
     return response.json()
 
 
+def send_photo(image_bytes, caption, chat_id=None):
+    """Post a generated image with its caption in one message. Telegram
+    caps photo captions at 1024 chars — separate from the 4096-char limit
+    truncate_html_safe's default targets for sendMessage — so this passes
+    max_len explicitly rather than relying on the default."""
+    url = f"{API_BASE}/sendPhoto"
+    caption = truncate_html_safe(caption, max_len=1024)
+    response = _post_with_retry(
+        url,
+        data={
+            "chat_id": chat_id or TELEGRAM_CHANNEL_ID,
+            "caption": caption,
+            "parse_mode": "HTML",
+        },
+        files={"photo": ("image.png", image_bytes, "image/png")},
+    )
+    if not response.ok:
+        print("Telegram sendPhoto API error response:", response.text)
+    response.raise_for_status()
+    return response.json()
+
+
+def send_document(image_bytes, caption, chat_id=None):
+    """Fallback for send_photo. Telegram's photo pipeline re-encodes and
+    enforces its own dimension/aspect-ratio rules on top of the documented
+    10MB/10000px/20:1 limits; sendDocument skips all of that and uploads
+    the bytes as-is, so it's a reasonable last resort if sendPhoto rejects
+    an otherwise-fine image. The post shows up as a file attachment rather
+    than an inline photo — worse presentation, but still fully automatic,
+    which beats falling all the way back to a manual admin hand-off."""
+    url = f"{API_BASE}/sendDocument"
+    caption = truncate_html_safe(caption, max_len=1024)
+    response = _post_with_retry(
+        url,
+        data={
+            "chat_id": chat_id or TELEGRAM_CHANNEL_ID,
+            "caption": caption,
+            "parse_mode": "HTML",
+        },
+        files={"document": ("image.png", image_bytes, "image/png")},
+    )
+    if not response.ok:
+        print("Telegram sendDocument API error response:", response.text)
+    response.raise_for_status()
+    return response.json()
+
+
 def send_poll(question, options, is_quiz=False, correct_option_id=None, explanation=None):
     """Native Telegram poll/quiz — a real poll object, not text. Vote polls
     (is_quiz=False) have no right answer; quiz polls mark one option correct

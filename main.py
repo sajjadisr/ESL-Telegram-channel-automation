@@ -12,13 +12,15 @@ from database import (
     sync_story_state_from_db,
 )
 from memory import load_json, save_json
-from ai import generate_content, generate_json, review_content, find_stray_script_chars
+from ai import generate_content, generate_json, review_content, find_stray_script_chars, generate_image
 from prompts import (
     FORMATS, build_generation_prompt, build_review_prompt, build_poll_prompt,
     build_scene_prompt, compose_image_prompt,
 )
-from telegram_bot import send_message, send_poll, send_admin_image_prompt, send_admin_message
-from channels import broadcast_extra_channels, format_quiz_for_extra_channels
+from telegram_bot import (
+    send_message, send_poll, send_admin_image_prompt, send_admin_message, send_photo, send_document,
+)
+from channels import broadcast_extra_channels, broadcast_extra_channels_photo, format_quiz_for_extra_channels
 from poll_feedback import harvest_pending_polls, save_pending_poll
 from topic_selection import (
     migrate_covered_topics, get_next_topic, get_due_review_topic,
@@ -190,6 +192,21 @@ def handle_poll_format(strategy, related, topic, format_name, recent_titles=None
 
 def handle_image_format(memory, strategy, related, topic, format_name, story=None, extra_note="",
                          campaign_note="", profile_note=""):
+    """Auto-generates and posts the image (Audit: this used to hand the
+    finished prompt to the admin to paste into an image tool by hand, every
+    single run) — to Telegram, Eitaa, and Bale. Falls back one rung at a
+    time (see below) rather than jumping straight to the full manual
+    hand-off the moment any one step wobbles, so a bad run never silently
+    loses the post — worst case still costs the admin the five minutes it
+    always used to cost.
+
+    Returns (content, status, extra_channel_results) — same shape the
+    caller already expects from the non-image branch, so a successful
+    auto-post now correctly counts as status="published" instead of always
+    being "pending_manual" (see the comment on record_topic_coverage below
+    for why that distinction used to not matter there, but does matter for
+    get_recent_posts/count_posts/recap eligibility, which all filter on
+    status='published')."""
     caption = generate_reviewed_text(memory, strategy, related, topic, format_name,
                                       story=story, extra_note=extra_note,
                                       campaign_note=campaign_note, profile_note=profile_note)
@@ -198,15 +215,55 @@ def handle_image_format(memory, strategy, related, topic, format_name, story=Non
     scene_sentence = _review_scene_sentence(generate_content(scene_prompt))
     image_prompt = compose_image_prompt(scene_sentence)
 
+    image_bytes = None
+    try:
+        # generate_image already retries per-model and falls back across
+        # two model tiers internally (ai.py) — this try/except is just a
+        # last-resort net for anything unforeseen, same spirit as main()'s
+        # own top-level catch-all.
+        image_bytes = generate_image(image_prompt)
+    except Exception as exc:  # noqa: BLE001 — a broken image call must not crash the run
+        print("handle_image_format: generate_image raised unexpectedly, falling back to manual:", exc)
+
+    if image_bytes is not None:
+        try:
+            send_photo(image_bytes, caption)
+        except Exception as exc:  # noqa: BLE001 — a Telegram send failure must not crash the run
+            print("handle_image_format: send_photo failed, trying sendDocument fallback:", exc)
+            try:
+                send_document(image_bytes, caption)
+            except Exception as exc2:  # noqa: BLE001
+                print("handle_image_format: send_document fallback also failed, falling back to manual:", exc2)
+                image_bytes = None
+
+    if image_bytes is not None:
+        # Auto cross-post to Eitaa/Bale too. Each platform independently
+        # falls back to a text-only caption if its own photo upload fails
+        # (see _send_platform_photo in channels.py) — Eitaa's endpoint in
+        # particular is a best-effort guess (no precise public docs), so
+        # this is what keeps a wrong guess there from costing the post.
+        extra_results = broadcast_extra_channels_photo(image_bytes, caption)
+        return (
+            f"[AUTO — image posted to Telegram + Eitaa/Bale]\n{caption}\n---\n{image_prompt}",
+            "published",
+            extra_results,
+        )
+
     admin_text = (
         f"📝 کپشن آماده برای «{topic['topic']}»:\n\n{caption}\n\n"
-        f"— بعد از ساختن تصویر، این کپشن رو همراه عکس دستی توی کانال تلگرام بذار.\n"
-        f"— همین کپشن + عکس رو توی ایتا و بله هم منتشر کن (این فرمت خودکار کراس‌پست نمی‌شه)."
+        f"— تولید یا انتشار خودکار عکس این‌بار جواب نداد، پس این‌بار رو دستی انجام بده: "
+        f"بعد از ساختن تصویر، این کپشن رو همراه عکس دستی توی کانال تلگرام بذار.\n"
+        f"— همین کپشن + عکس رو توی ایتا و بله هم منتشر کن (این‌بار خودکار کراس‌پست نشد)."
     )
     send_admin_image_prompt(admin_text, label="کپشن")
     send_admin_image_prompt(image_prompt, label=topic["topic"])
 
-    return f"[MANUAL — caption + image prompt sent to admin]\n{caption}\n---\n{image_prompt}"
+    return (
+        f"[MANUAL — auto image generation/delivery failed, caption + image prompt sent to admin]\n"
+        f"{caption}\n---\n{image_prompt}",
+        "pending_manual",
+        None,
+    )
 
 
 def _select_topic(memory, format_name, theme_category=None):
@@ -387,15 +444,15 @@ def main():
     related = search_related_posts(topic["topic"], category=topic.get("category"))
 
     if fmt["needs_image"]:
-        content = handle_image_format(memory, strategy, related, topic, format_name,
-                                       story=story, extra_note=extra_note,
-                                       campaign_note=campaign_note, profile_note=profile_note)
-        status = "pending_manual"
-        # illustrated_pun's caption+image are handed to the admin for manual
-        # posting everywhere (see handle_image_format) — nothing was
-        # actually broadcast to Eitaa/Bale here, so there's no delivery
-        # result to record.
-        extra_results = None
+        # handle_image_format now auto-generates and posts the image itself
+        # (falling back to the old manual admin hand-off only if that
+        # fails), so status/extra_results come from what actually happened
+        # this run rather than being hardcoded to "pending_manual"/None.
+        content, status, extra_results = handle_image_format(
+            memory, strategy, related, topic, format_name,
+            story=story, extra_note=extra_note,
+            campaign_note=campaign_note, profile_note=profile_note,
+        )
     else:
         content = generate_reviewed_text(memory, strategy, related, topic, format_name,
                                           story=story, extra_note=extra_note,

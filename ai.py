@@ -22,6 +22,25 @@ _client = genai.Client(api_key=GEMINI_API_KEY)
 DRAFT_MODEL = "gemini-3.5-flash-lite"
 REVIEW_MODEL = "gemini-3.5-flash"
 
+# Image generation for illustrated_pun (handle_image_format in main.py).
+# Deliberately NOT client.models.generate_images with an Imagen model
+# (imagen-4.0-generate-001 etc.) — Google's Gemini API release notes list
+# every Imagen model as shutting down August 17, 2026. This uses the
+# Gemini-native "Nano Banana" image family instead, through the same
+# generate_content endpoint as the text models above.
+# gemini-3.1-flash-lite-image (Nano Banana 2 Lite) is the cheapest/fastest
+# GA tier — same reasoning as DRAFT_MODEL being flash-lite for text: a
+# small flat-icon illustration doesn't need the Pro tier's text-rendering/
+# reasoning strength, and this runs far less often than DRAFT_MODEL does.
+IMAGE_MODEL = "gemini-3.1-flash-lite-image"
+# Tried only if IMAGE_MODEL comes back empty (hard failure after retries,
+# OR a 200 with no image part — e.g. a safety block that's specific to
+# that model's filters). A different Nano Banana generation is a genuinely
+# independent failure mode — different weights, different infra — so one
+# more attempt here is worth it before handle_image_format gives up and
+# falls back to the fully-manual admin hand-off.
+FALLBACK_IMAGE_MODEL = "gemini-2.5-flash-image"
+
 # 30s per HTTP call — long enough for a normal generation, short enough that
 # a genuine hang doesn't block the job until CI's own timeout kills it.
 _HTTP_OPTIONS = types.HttpOptions(timeout=30_000)
@@ -64,6 +83,75 @@ def generate_content_smart(prompt):
     tier — called far less often than generate_content, by design, so the
     daily cap isn't hit."""
     return _call_model(REVIEW_MODEL, prompt)
+
+
+def _generate_image_with_model(model_name, prompt):
+    """One model's worth of retried attempts (see _call_model — same
+    retry-with-backoff convention). Returns image bytes, or None if the
+    model responded but produced no image part (a soft failure — e.g. a
+    safety block — not an API error). Raises after MAX_API_ATTEMPTS on a
+    hard API failure; generate_image below decides whether to try the
+    fallback model."""
+    last_exc = None
+    for attempt in range(1, MAX_API_ATTEMPTS + 1):
+        try:
+            response = _client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    image_config=types.ImageConfig(aspect_ratio="1:1"),
+                    http_options=_HTTP_OPTIONS,
+                ),
+            )
+            for part in response.parts or []:
+                if getattr(part, "inline_data", None) is not None:
+                    return part.inline_data.data
+            print(f"generate_image ({model_name}): responded with no image part "
+                  f"(likely a safety block).")
+            return None
+        except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+            last_exc = exc
+            if attempt < MAX_API_ATTEMPTS:
+                print(f"Gemini image call to {model_name} failed (attempt "
+                      f"{attempt}/{MAX_API_ATTEMPTS}): {exc}. Retrying...")
+                time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
+            else:
+                print(f"Gemini image call to {model_name} failed after "
+                      f"{MAX_API_ATTEMPTS} attempts: {exc}")
+    raise last_exc
+
+
+def generate_image(prompt):
+    """Generate one image from a fully-composed prompt (see
+    prompts.compose_image_prompt) — used by handle_image_format to auto-post
+    illustrated_pun instead of handing the prompt to the admin.
+
+    Tries IMAGE_MODEL first, then FALLBACK_IMAGE_MODEL if the first
+    produced nothing — whether that's because every retry raised, or
+    because it returned a normal response with no image part. Only after
+    BOTH models fail does this give up.
+
+    Unlike _call_model-based functions, this never raises — it always
+    returns bytes or None, since "try the next thing" already happened
+    internally. handle_image_format still wraps the call in a try/except
+    as a last-resort net, but shouldn't need it in practice."""
+    try:
+        image_bytes = _generate_image_with_model(IMAGE_MODEL, prompt)
+    except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+        print(f"generate_image: {IMAGE_MODEL} unavailable after retries ({exc}).")
+        image_bytes = None
+
+    if image_bytes is not None:
+        return image_bytes
+
+    print(f"generate_image: falling back to {FALLBACK_IMAGE_MODEL}.")
+    try:
+        return _generate_image_with_model(FALLBACK_IMAGE_MODEL, prompt)
+    except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+        print(f"generate_image: fallback model {FALLBACK_IMAGE_MODEL} also failed "
+              f"after retries: {exc}")
+        return None
 
 
 # Characters this channel should ever contain: Latin (English), Persian/Arabic

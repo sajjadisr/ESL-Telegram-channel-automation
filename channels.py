@@ -131,9 +131,9 @@ def _api_error_detail(response):
     return str(body)
 
 
-def _send_platform(name, fn, text):
+def _send_platform(name, fn, *args):
     try:
-        response = fn(text)
+        response = fn(*args)
     except Exception as exc:  # noqa: BLE001
         print(f"{name} send failed unexpectedly:", exc)
         send_admin_message(
@@ -147,6 +147,32 @@ def _send_platform(name, fn, text):
             f"تلگرام احتمالاً منتشر شده؛ لطفاً {name} رو چک کن."
         )
     return response
+
+
+def _send_platform_photo(name, photo_fn, text_fn, image_bytes, caption):
+    """Send image+caption on one extra channel; if the photo upload itself
+    doesn't clearly succeed — network error, non-OK response, or an
+    exception — fall back to sending the caption as plain text via
+    text_fn, the same already-proven function broadcast_extra_channels
+    uses. This matters most for Eitaa: its file-upload endpoint isn't
+    precisely documented anywhere public (see send_eitaa_photo's
+    docstring), so this fallback is what keeps a wrong guess there from
+    costing the channel its post entirely — worst case is exactly what
+    happened before this feature existed (caption only, no photo)."""
+    try:
+        response = photo_fn(image_bytes, caption)
+    except Exception as exc:  # noqa: BLE001
+        print(f"{name} photo send failed unexpectedly:", exc)
+        response = None
+
+    if _api_ok(response) is True:
+        return {"photo": response}
+
+    if response is not None:
+        print(f"{name} photo API error response:", _api_error_detail(response))
+    print(f"{name}: photo upload didn't succeed — falling back to a text-only caption "
+          f"so the channel isn't left with nothing.")
+    return {"photo": response, "text_fallback": _send_platform(name, text_fn, caption)}
 
 
 def send_eitaa(text):
@@ -167,6 +193,37 @@ def send_eitaa(text):
     return response
 
 
+def send_eitaa_photo(image_bytes, caption):
+    """Best-effort: eitaayar.ir has no precise, official English API
+    reference for file uploads. This follows the shape used by the
+    community eitaapykit/eitaa wrapper — send_file(chat_id, caption,
+    file) — extrapolated onto the same REST pattern send_eitaa above
+    already relies on (https://eitaayar.ir/api/{token}/sendFile, mirroring
+    .../sendMessage). If the endpoint or field name guessed here is wrong,
+    this fails the same defensive way every other extra-channel call does
+    (_api_ok catches it), and _send_platform_photo's caller falls back to
+    a text-only caption — so a wrong guess degrades gracefully instead of
+    silently losing the post."""
+    if not (EITAA_TOKEN and EITAA_CHANNEL_ID):
+        return None
+    url = f"https://eitaayar.ir/api/{EITAA_TOKEN}/sendFile"
+    max_len = EITAA_MAX_MESSAGE_LEN - MESSAGE_LEN_SAFETY_MARGIN
+    caption_text = truncate_html_safe(to_plain_text(caption), max_len=max_len, suffix="...")
+    try:
+        response = requests.post(
+            url,
+            data={"chat_id": EITAA_CHANNEL_ID, "caption": caption_text},
+            files={"file": ("image.png", image_bytes, "image/png")},
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        print("Eitaa sendFile network error:", exc)
+        return None
+    if _api_ok(response) is False:
+        print("Eitaa sendFile API error response:", _api_error_detail(response))
+    return response
+
+
 def send_bale(text):
     if not (BALE_BOT_TOKEN and BALE_CHAT_ID):
         return None
@@ -184,8 +241,50 @@ def send_bale(text):
     return response
 
 
+def send_bale_photo(image_bytes, caption):
+    """Bale's Bot API is a documented, close mirror of Telegram's Bot API
+    (same tapi.bale.ai/bot{token}/<method> shape, same official sample
+    code using a Telegram-bot-style client pointed at Bale's base URL) —
+    unlike Eitaa, this isn't a guess: sendPhoto works the same way,
+    multipart upload with a "photo" field and an HTML caption."""
+    if not (BALE_BOT_TOKEN and BALE_CHAT_ID):
+        return None
+    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendPhoto"
+    max_len = BALE_MAX_MESSAGE_LEN - MESSAGE_LEN_SAFETY_MARGIN
+    caption_text = truncate_html_safe(to_bale_html(caption), max_len=min(max_len, 1024), suffix="...")
+    try:
+        response = requests.post(
+            url,
+            data={"chat_id": BALE_CHAT_ID, "caption": caption_text, "parse_mode": "HTML"},
+            files={"photo": ("image.png", image_bytes, "image/png")},
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        print("Bale sendPhoto network error:", exc)
+        return None
+    if _api_ok(response) is False:
+        print("Bale sendPhoto API error response:", _api_error_detail(response))
+    return response
+
+
 def broadcast_extra_channels(text):
     results = {}
     for name, fn in [("eitaa", send_eitaa), ("bale", send_bale)]:
         results[name] = _send_platform(name, fn, text)
+    return results
+
+
+def broadcast_extra_channels_photo(image_bytes, caption):
+    """Auto cross-post the generated image to Eitaa/Bale (Audit: this
+    format used to never cross-post automatically at all — the admin got
+    the caption+prompt and had to post everywhere by hand). Each platform
+    falls back to a text-only caption if its own photo upload fails, via
+    _send_platform_photo, so the worst case per platform is exactly the
+    old manual-caption behavior rather than nothing."""
+    results = {}
+    for name, photo_fn, text_fn in [
+        ("eitaa", send_eitaa_photo, send_eitaa),
+        ("bale", send_bale_photo, send_bale),
+    ]:
+        results[name] = _send_platform_photo(name, photo_fn, text_fn, image_bytes, caption)
     return results
