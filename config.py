@@ -15,6 +15,32 @@ GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 # unset to run with just the one key (existing behavior, unchanged).
 GEMINI_API_KEY_BACKUP = os.environ.get("GEMINI_API_KEY_BACKUP", "").strip()
 
+# Optional. Free-tier (no credit card) text-generation fallback via Groq,
+# used only once EVERY configured Gemini key/model above has failed for a
+# given call — see ai.py's Groq section for the retry/fallback order. This
+# exists because GEMINI_API_KEY_BACKUP doesn't cover every failure mode: the
+# "AQ." key rollout described above is Google rejecting a *key format*, not
+# one specific credential, so it can hit every key on every Google account,
+# including a second/backup one. Groq runs on entirely separate
+# infrastructure, so it isn't affected by whatever is currently wrong with
+# Gemini. Get a free key at console.groq.com (no card required). Leave
+# unset to run with Gemini only (existing behavior, unchanged) — if Gemini
+# fails and this isn't set, the run fails exactly as it did before this was
+# added.
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
+
+# Optional. Free-tier (no credit card) image-generation fallback via
+# Cloudflare Workers AI, used only once BOTH Gemini image tiers
+# (ai.IMAGE_MODEL and ai.FALLBACK_IMAGE_MODEL) have failed to produce an
+# image. Both values come from the same Cloudflare account:
+# dash.cloudflare.com -> Workers AI -> the account ID is in the right
+# sidebar / URL; create an API token with "Workers AI: Read" permission
+# (Read is enough - this only calls the /ai/run endpoint). Leave either
+# unset to skip this fallback; handle_image_format's existing manual
+# admin hand-off still applies exactly as before.
+CLOUDFLARE_ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
+CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+
 # Optional. Your own Telegram numeric chat ID (message @userinfobot to get it).
 # Used to hand you image-generation prompts to paste into an image tool
 # yourself (this project never calls an image generator), AND for low-topic-

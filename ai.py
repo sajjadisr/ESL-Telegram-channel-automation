@@ -1,12 +1,17 @@
+import base64
 import json
 import re
 import time
 
+import requests
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
 
-from config import GEMINI_API_KEY, GEMINI_API_KEY_BACKUP
+from config import (
+    GEMINI_API_KEY, GEMINI_API_KEY_BACKUP,
+    GROQ_API_KEY, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN,
+)
 
 
 class GeminiAuthError(RuntimeError):
@@ -21,6 +26,21 @@ class GeminiAuthError(RuntimeError):
     - main.py's top-level handler can send an admin alert that names the
       actual, actionable cause instead of a generic "something broke, check
       the log" message.
+    """
+
+
+class AllTextProvidersFailedError(RuntimeError):
+    """Raised when EVERY configured text provider has failed for a call —
+    Gemini (both keys, if GEMINI_API_KEY_BACKUP is set) AND the Groq
+    fallback (see _call_groq), or Gemini failed and Groq isn't configured
+    at all.
+
+    Distinct from GeminiAuthError: that one can fire the moment Gemini's
+    keys are exhausted, but generate_content/generate_content_smart catch it
+    internally and try Groq before giving up — so by the time this raises,
+    there is genuinely no working text model anywhere, which is a more
+    urgent, differently-worded admin alert (see main.py's top-level
+    handler) than "Gemini specifically has a bad credential."
     """
 
 
@@ -97,6 +117,101 @@ _HTTP_OPTIONS = types.HttpOptions(timeout=30_000)
 MAX_API_ATTEMPTS = 3
 _RETRY_BASE_DELAY_SECONDS = 3
 
+# --- Free-tier fallback providers -------------------------------------------
+# Reached only once every Gemini option above has already failed on a given
+# call (see the module docstring on AllTextProvidersFailedError above, and
+# the comment on generate_image below for the image side). Both run on
+# infrastructure that has nothing to do with Google, so neither is affected
+# by whatever is currently wrong with Gemini — that's the whole point: they
+# cover the failure mode a second Gemini key can't (see GEMINI_API_KEY_BACKUP
+# in config.py). Because Gemini is always tried first, in full, on every
+# call, the pipeline goes back to using it automatically the moment it
+# starts working again — nothing here needs to be switched back by hand.
+
+# openai/gpt-oss-120b: OpenAI's open-weight 120B model, hosted free (no
+# credit card) on Groq's LPU inference. Chosen over Groq's other free
+# models (Llama 3.3 70B, etc.) for output quality — it's the strongest
+# model on Groq's free tier, and this project's volume (POSTS_PER_DAY
+# drafts/reviews, plus retries) comfortably fits Groq's free daily token
+# budget for it. Same model used for both the DRAFT_MODEL and REVIEW_MODEL
+# fallback path — unlike Gemini's two-tier split, there's no quota pressure
+# here forcing a cheaper/smaller model for the high-volume draft calls.
+GROQ_MODEL = "openai/gpt-oss-120b"
+GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MAX_ATTEMPTS = 2
+_GROQ_RETRY_BASE_DELAY_SECONDS = 3
+
+
+def _call_groq(prompt):
+    """Text fallback. Returns a plain string on success, or None if Groq
+    isn't configured (no GROQ_API_KEY) or every attempt failed. Callers
+    treat None exactly like "no fallback available" and re-raise the
+    original Gemini failure — a missing/broken Groq key must never mask
+    the real Gemini error with a confusing unrelated one."""
+    if not GROQ_API_KEY:
+        return None
+    for attempt in range(1, GROQ_MAX_ATTEMPTS + 1):
+        try:
+            resp = requests.post(
+                GROQ_CHAT_URL,
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+                json={
+                    "model": GROQ_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"].strip()
+        except Exception as exc:  # noqa: BLE001 — any failure here just means "no fallback"
+            if attempt < GROQ_MAX_ATTEMPTS:
+                print(f"Groq fallback call failed (attempt {attempt}/{GROQ_MAX_ATTEMPTS}): "
+                      f"{exc}. Retrying...")
+                time.sleep(_GROQ_RETRY_BASE_DELAY_SECONDS * attempt)
+            else:
+                print(f"Groq fallback call failed after {GROQ_MAX_ATTEMPTS} attempts: {exc}")
+    return None
+
+
+# Flux Schnell on Cloudflare Workers AI: a fast, well-regarded open-weight
+# image model, free (no credit card) within Workers AI's daily neuron
+# budget — comfortably enough for this project's volume (at most one
+# illustrated_pun image/day).
+CLOUDFLARE_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell"
+
+
+def _call_cloudflare_image(prompt):
+    """Image fallback, reached only once both Gemini image tiers
+    (IMAGE_MODEL, FALLBACK_IMAGE_MODEL) have failed to produce an image.
+    Returns image bytes, or None if Cloudflare isn't configured or the call
+    failed. generate_image's only caller (handle_image_format in main.py)
+    already treats a None return as "auto image generation failed" and
+    falls back to its existing manual admin hand-off, so nothing downstream
+    needs to change for this to slot in."""
+    if not (CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN):
+        return None
+    url = (
+        f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}"
+        f"/ai/run/{CLOUDFLARE_IMAGE_MODEL}"
+    )
+    try:
+        resp = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"},
+            json={"prompt": prompt},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        b64_image = (data.get("result") or {}).get("image")
+        if not b64_image:
+            print("Cloudflare image fallback: response had no image field.")
+            return None
+        return base64.b64decode(b64_image)
+    except Exception as exc:  # noqa: BLE001 — any failure here just means "no fallback"
+        print(f"Cloudflare image fallback call failed: {exc}")
+        return None
+
 
 def _call_model(model_name, prompt):
     """Call the given Gemini model with retry-with-backoff for transient
@@ -140,15 +255,43 @@ def _call_model(model_name, prompt):
 
 
 def generate_content(prompt):
-    """Drafting calls. Cheap/high-quota tier — safe to call repeatedly."""
-    return _call_model(DRAFT_MODEL, prompt)
+    """Drafting calls. Cheap/high-quota tier — safe to call repeatedly.
+
+    Falls back to Groq (_call_groq) if every configured Gemini key/model
+    has failed for this call. Raises AllTextProvidersFailedError only if
+    Groq isn't configured or also fails — see that class's docstring."""
+    try:
+        return _call_model(DRAFT_MODEL, prompt)
+    except (GeminiAuthError, genai_errors.ServerError, genai_errors.ClientError,
+            genai_errors.APIError) as exc:
+        print(f"generate_content: Gemini failed ({exc}); trying Groq fallback.")
+        fallback = _call_groq(prompt)
+        if fallback is not None:
+            return fallback
+        raise AllTextProvidersFailedError(
+            f"Both Gemini and the Groq fallback failed to generate content: {exc}"
+        ) from exc
 
 
 def generate_content_smart(prompt):
     """Review, poll/quiz, and weekly-strategy calls. Smarter, low-quota
     tier — called far less often than generate_content, by design, so the
-    daily cap isn't hit."""
-    return _call_model(REVIEW_MODEL, prompt)
+    daily cap isn't hit.
+
+    Falls back to Groq (_call_groq) if every configured Gemini key/model
+    has failed for this call. Raises AllTextProvidersFailedError only if
+    Groq isn't configured or also fails — see that class's docstring."""
+    try:
+        return _call_model(REVIEW_MODEL, prompt)
+    except (GeminiAuthError, genai_errors.ServerError, genai_errors.ClientError,
+            genai_errors.APIError) as exc:
+        print(f"generate_content_smart: Gemini failed ({exc}); trying Groq fallback.")
+        fallback = _call_groq(prompt)
+        if fallback is not None:
+            return fallback
+        raise AllTextProvidersFailedError(
+            f"Both Gemini and the Groq fallback failed to generate content: {exc}"
+        ) from exc
 
 
 def _generate_image_with_model(model_name, prompt):
@@ -230,11 +373,22 @@ def generate_image(prompt):
 
     print(f"generate_image: falling back to {FALLBACK_IMAGE_MODEL}.")
     try:
-        return _generate_image_with_model(FALLBACK_IMAGE_MODEL, prompt)
+        image_bytes = _generate_image_with_model(FALLBACK_IMAGE_MODEL, prompt)
     except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
         print(f"generate_image: fallback model {FALLBACK_IMAGE_MODEL} also failed "
               f"after retries: {exc}")
-        return None
+        image_bytes = None
+
+    if image_bytes is not None:
+        return image_bytes
+
+    # Both Gemini image tiers are exhausted — try the Cloudflare Workers AI
+    # fallback (_call_cloudflare_image) before giving up. Still returns
+    # bytes or None either way, same contract as the two attempts above, so
+    # handle_image_format's existing manual admin hand-off is unaffected
+    # if this also comes back empty (or isn't configured).
+    print("generate_image: both Gemini image models failed; trying Cloudflare Workers AI fallback.")
+    return _call_cloudflare_image(prompt)
 
 
 # Characters this channel should ever contain: Latin (English), Persian/Arabic
@@ -279,15 +433,16 @@ def generate_json(prompt, fallback=None, strict=False):
     review step — a parse failure there should surface as an error the admin
     can see, not silently publish a generic placeholder question.
 
-    GeminiAuthError always re-raises regardless of `strict`: a broken
-    credential means every Gemini call this run is failing the same way, not
-    just this one — folding that into a generic "review failed, using
-    fallback" would hide the one failure mode that's actually worth a
-    specific admin alert (see main.py's top-level handler).
+    AllTextProvidersFailedError always re-raises regardless of `strict`: it
+    means every configured text provider (Gemini AND the Groq fallback, see
+    that class's docstring) failed on this call, not just a single-source
+    hiccup — folding that into a generic "review failed, using fallback"
+    would hide the one failure mode that's actually worth a specific admin
+    alert (see main.py's top-level handler).
     """
     try:
         raw = generate_content_smart(prompt)
-    except GeminiAuthError:
+    except AllTextProvidersFailedError:
         raise
     except Exception as exc:
         if strict:

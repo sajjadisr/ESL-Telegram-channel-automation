@@ -23,6 +23,9 @@ jobs:
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_BACKUP: ${{ secrets.GEMINI_API_KEY_BACKUP }}
+          # Optional — free (no credit card) fallback text model, tried only
+          # if every Gemini key above fails. Leave unset to run Gemini-only.
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
 
       - name: Commit updated strategy

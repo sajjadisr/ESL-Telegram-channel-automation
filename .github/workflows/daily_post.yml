@@ -32,6 +32,16 @@ jobs:
           # error (see ai.GeminiAuthError). Leave unset to run with just the
           # one key, same as before.
           GEMINI_API_KEY_BACKUP: ${{ secrets.GEMINI_API_KEY_BACKUP }}
+          # Optional — free (no credit card) fallback text model, tried only
+          # if every Gemini key above fails for a given call. Get a key at
+          # console.groq.com. Leave unset to run with Gemini only.
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          # Optional — free (no credit card) fallback image model, tried only
+          # if both Gemini image tiers fail. dash.cloudflare.com -> Workers AI.
+          # Leave either unset to skip this fallback (existing manual admin
+          # hand-off still applies).
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           # Optional — leave the secret unset and this is just an empty string,
           # which the code treats the same as "not configured".
           TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}

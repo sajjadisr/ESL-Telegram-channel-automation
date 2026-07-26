@@ -14,7 +14,7 @@ from database import (
 from memory import load_json, save_json
 from ai import (
     generate_content, generate_json, review_content, find_stray_script_chars,
-    generate_image, GeminiAuthError,
+    generate_image, GeminiAuthError, AllTextProvidersFailedError,
 )
 from prompts import (
     FORMATS, build_generation_prompt, build_review_prompt, build_poll_prompt,
@@ -502,15 +502,34 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except AllTextProvidersFailedError as exc:
+        # Gemini AND the free Groq fallback (ai._call_groq) both failed (or
+        # Groq isn't configured at all) — genuinely no working text model
+        # right now, not just "Gemini has a bad credential" (GeminiAuthError,
+        # caught below, is now rare: generate_content/generate_content_smart
+        # already catch it internally and try Groq before this ever raises).
+        try:
+            send_admin_message(
+                "🔴 اجرای امروز شکست خورد: نه Gemini جواب داد، نه fallback رایگان Groq.\n\n"
+                f"{exc}\n\n"
+                "برای رفع:\n"
+                "۱) توی Google AI Studio پیشوند کلید Gemini رو چک کن — اگر با AQ. شروع "
+                "میشه (به‌جای AIza)، احتمالاً همون مشکل قدیمیه.\n"
+                "۲) اگه سکرت GROQ_API_KEY هنوز تنظیم نشده، یه کلید رایگان (بدون نیاز به "
+                "کارت بانکی) از console.groq.com بگیر و به‌عنوان سکرت GitHub اضافه‌ش کن — "
+                "پایپ‌لاین خودکار روش fallback می‌کنه تا Gemini درست بشه.\n"
+                "۳) اگه GROQ_API_KEY از قبل تنظیم شده، لاگ اجرا رو توی تب Actions چک کن — "
+                "احتمالاً Groq هم موقتاً quota یا خطای شبکه داشته."
+            )
+        except Exception as alert_exc:
+            print("Also failed to send the admin failure alert:", alert_exc)
+        raise
     except GeminiAuthError as exc:
-        # Distinct from the generic handler below: this is specifically a
-        # broken/rejected credential (not quota, not network, not a code
-        # bug), most likely Google having switched this account's Gemini
-        # keys to the "AQ." format, which the generativelanguage.googleapis.com
-        # REST API currently rejects with a 401 even through the official
-        # SDK. Names the actual fix instead of sending the generic "check
-        # the log" message, so whoever reads this alert doesn't have to
-        # re-diagnose it from scratch.
+        # Should be rare in practice now — generate_content/generate_content_smart
+        # catch this internally and try the Groq fallback before ever
+        # re-raising as AllTextProvidersFailedError (handled above). Kept as
+        # a defensive net in case some future code path calls the Gemini
+        # client directly without going through those two functions.
         try:
             send_admin_message(
                 "🔴 اجرای امروز شکست خورد: خطای احراز هویت Gemini (نه quota، نه شبکه).\n\n"
