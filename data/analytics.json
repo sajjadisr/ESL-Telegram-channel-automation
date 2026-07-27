@@ -42,6 +42,9 @@
     "reward_score": null,
     "experiment_id": null,
     "variant_label": null,
-    "extra_channel_delivery": null
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    }
   }
 ]
