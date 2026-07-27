@@ -17,7 +17,7 @@ from ai import (
 )
 from prompts import (
     FORMATS, build_generation_prompt, build_review_prompt, build_poll_prompt,
-    build_scene_prompt, compose_image_prompt,
+    build_scene_prompt, compose_image_prompt, build_recap_title_prompt,
 )
 from telegram_bot import (
     send_message, send_poll, send_admin_image_prompt, send_admin_message, send_photo, send_document,
@@ -35,9 +35,9 @@ import experiments
 import analytics
 import reader
 import news
+import recap_card
 
 MAX_REVIEW_ATTEMPTS = 2
-ILLUSTRATED_PUN_CATEGORY = "Idioms"
 
 # Fallback format for "extra" daily slots (beyond FRESH_TOPICS_PER_DAY) on a
 # day whose scheduled format needs a poll or a manual image — those formats
@@ -302,26 +302,77 @@ def handle_image_format(memory, strategy, related, topic, format_name, extra_not
     )
 
 
+def _try_recap_image(recap_titles, caption):
+    """Best-effort image-card recap (content-pipeline-architecture.md §8).
+    Returns the extra_channel_results dict if it was rendered and posted
+    successfully (Telegram + Eitaa/Bale), or None if the caller should fall
+    back to the plain-text post instead.
+
+    Every failure path here is a silent log line, not an admin alert —
+    unlike handle_image_format's illustrated_pun (where a failed image IS
+    the post and someone has to make it manually), the plain-text recap has
+    always been the fully-working default for this format, so the image
+    card is a nice-to-have upgrade, not something worth paging anyone about
+    when it's not available yet (e.g. before RECAP_FONT_PATH's font file
+    has been added — see recap_card.py)."""
+    try:
+        title = generate_content(build_recap_title_prompt(recap_titles)).strip().strip('"').strip("«»")
+    except Exception as exc:  # noqa: BLE001
+        print("recap image: title generation failed, falling back to text recap:", exc)
+        return None
+
+    try:
+        image_bytes = recap_card.render_recap_card(title, recap_titles)
+    except recap_card.FontNotAvailable as exc:
+        print("recap image: font not available, falling back to text recap:", exc)
+        return None
+    except Exception as exc:  # noqa: BLE001
+        print("recap image: render_recap_card raised unexpectedly, falling back to text recap:", exc)
+        return None
+
+    try:
+        send_photo(image_bytes, caption)
+    except Exception as exc:  # noqa: BLE001
+        print("recap image: send_photo failed, trying sendDocument fallback:", exc)
+        try:
+            send_document(image_bytes, caption)
+        except Exception as exc2:  # noqa: BLE001
+            print("recap image: send_document fallback also failed, falling back to text recap:", exc2)
+            return None
+
+    return broadcast_extra_channels_photo(image_bytes, caption)
+
+
 def _select_topic(memory, format_name, theme_category=None):
-    """Return (topic, extra_note, invented_idiom_mode). theme_category
-    (campaigns.py) is only a soft preference, and only applies outside
-    illustrated_pun — that format's category_filter is a hard requirement
-    (Idioms only), not something a weekly theme should override."""
+    """Return (topic, extra_note, invented_idiom_mode).
+
+    Every format goes through the exact same get_next_topic call now —
+    which topics are even candidates is decided by topic_selection._eligible
+    from each format's own declared contract in prompts.FORMATS (category_filter
+    / required_tags), not by a special case here (content-pipeline-
+    architecture.md §5). theme_category (campaigns.py) is only ever a soft
+    preference within whatever pool a format is already restricted to; it
+    can't override a format's declared eligibility.
+
+    The one thing that IS still format-specific here is what to do if a
+    format's eligible pool runs completely dry — illustrated_pun is the
+    only format this has ever happened to in practice (a finite curated
+    idiom list vs. a self-refilling topic pool), so it's the only one with
+    a fallback: let the model invent a fresh idiom on the spot rather than
+    stall the format entirely."""
     extra_note = ""
     invented_idiom_mode = False
 
-    if format_name == "illustrated_pun":
-        topic = get_next_topic(memory, format_name, category_filter=ILLUSTRATED_PUN_CATEGORY)
-        if topic is None:
-            invented_idiom_mode = True
-            topic = dict(INVENTED_IDIOM_TOPIC)
-            extra_note = (
-                "توی data/topics.json دیگه اصطلاح (Idiom) پوشش‌داده‌نشده‌ای باقی نمونده. "
-                "به‌جاش یه اصطلاح ساده و رایج انگلیسی (سطح A1-A2) که فاصله‌ی واضحی بین معنی "
-                "تحت‌اللفظی و معنی واقعی داره خودت انتخاب کن و همون رو موضوع این پست کن."
-            )
-    else:
-        topic = get_next_topic(memory, format_name, theme_category=theme_category)
+    topic = get_next_topic(memory, format_name, theme_category=theme_category)
+
+    if topic is None and format_name == "illustrated_pun":
+        invented_idiom_mode = True
+        topic = dict(INVENTED_IDIOM_TOPIC)
+        extra_note = (
+            "توی data/topics.json دیگه اصطلاح (Idiom) پوشش‌داده‌نشده‌ای باقی نمونده. "
+            "به‌جاش یه اصطلاح ساده و رایج انگلیسی (سطح A1-A2) که فاصله‌ی واضحی بین معنی "
+            "تحت‌اللفظی و معنی واقعی داره خودت انتخاب کن و همون رو موضوع این پست کن."
+        )
 
     return topic, extra_note, invented_idiom_mode
 
@@ -375,8 +426,15 @@ def main():
         content = generate_reviewed_text(memory, strategy, [], topic, format_name,
                                           recap_titles=recap_titles,
                                           campaign_note=campaign_note, profile_note=profile_note)
-        send_message(content)
-        extra_results = broadcast_extra_channels(content)
+
+        extra_results = _try_recap_image(recap_titles, content)
+        if extra_results is None:
+            # Image path unavailable (no font — see recap_card.py) or
+            # failed somewhere — fall back to the plain-text post, which
+            # is how this format has always worked and needs no asset.
+            send_message(content)
+            extra_results = broadcast_extra_channels(content)
+
         save_post(date=today_str, format_name=format_name,
                    category="Recap", level="-", title="Progress recap",
                    content=content, keywords="recap", status="published")

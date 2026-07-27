@@ -4,6 +4,7 @@ import datetime
 
 from config import TOPICS_PATH, REVIEW_INTERVALS_DAYS, MAINTENANCE_INTERVAL_DAYS
 from memory import load_json
+from prompts import FORMATS
 
 # Meta-label, not a teachable idiom — excluded from illustrated_pun (Audit #7).
 _EXCLUDED_TOPICS = {"Common everyday idioms"}
@@ -58,18 +59,78 @@ def record_topic_coverage(memory, topic_name, format_name, date_str):
     )
 
 
-def get_next_topic(memory, format_name, category_filter=None, theme_category=None):
-    """Pick the next topic. Never returns None while topics.json is non-empty —
-    when the fresh pool is exhausted, recycle with a different format (Audit #17).
+def _eligible(topic, format_name):
+    """The declared format↔content contract (content-pipeline-architecture.md
+    §5) — replaces the single hardcoded `if format_name == "illustrated_pun"`
+    special case that used to live in main.py::_select_topic. Every check
+    here reads from the format's own entry in prompts.FORMATS or the topic's
+    own fields; nothing about a specific format name is hardcoded here, so
+    adding a new format is "add one dict entry", never "add another branch".
+
+    Two independent, additive checks:
+
+    1. `category_filter` on the format (e.g. illustrated_pun -> "Idioms",
+       spot_mistake -> ["Common mistakes", "Persian transfer errors"]).
+       Absent/falsy on a format means "any category" — every pre-existing
+       format that never had a category restriction keeps behaving exactly
+       as before.
+    2. `required_tags` on the format (e.g. idiom_proverb_bridge ->
+       ["has_fa_equivalent"]) — a hard content requirement checked against
+       the topic's own `tags` list, and it fails CLOSED: a topic with no
+       tags at all (every one of the 121 pre-existing entries, and anything
+       topic_generation.py self-refills later) simply doesn't qualify until
+       a human tags it. That's deliberate — the whole point of restricting
+       this at the schema level instead of trusting the prompt to
+       self-censor (§4) is that an unverified cultural pairing is exactly
+       the kind of "confidently wrong" claim a native reader catches
+       immediately, so the safe default is "not eligible yet", not
+       "eligible unless someone remembered to exclude it".
+
+    A topic's own optional `eligible_formats` (§3) is a further, opt-in
+    RESTRICTION layered on top of both checks above — for the case where a
+    topic matches a format's category/tags but should still be excluded
+    from it for some other reason. Absent, it imposes no extra restriction,
+    which is what makes this fully additive: every topic without the field
+    is exactly as eligible as it was before this function existed."""
+    fmt = FORMATS.get(format_name, {})
+
+    category_filter = fmt.get("category_filter")
+    if category_filter:
+        allowed_categories = (
+            {category_filter} if isinstance(category_filter, str) else set(category_filter)
+        )
+        if topic["category"] not in allowed_categories:
+            return False
+
+    required_tags = fmt.get("required_tags")
+    if required_tags:
+        topic_tags = set(topic.get("tags", []))
+        if not set(required_tags).issubset(topic_tags):
+            return False
+
+    allowed_formats = topic.get("eligible_formats")
+    if allowed_formats is not None and format_name not in allowed_formats:
+        return False
+
+    return True
+
+
+def get_next_topic(memory, format_name, theme_category=None):
+    """Pick the next topic. Never returns None while at least one topic in
+    topics.json is eligible for this format (see _eligible) — when the
+    fresh pool is exhausted, recycle with a different format (Audit #17).
+
+    format_name alone now fully determines which topics are even
+    candidates (via _eligible / prompts.FORMATS) — callers no longer pass
+    a category_filter, so main.py::_select_topic calls this the exact same
+    way for illustrated_pun as for every other format.
 
     theme_category (campaigns.py) is a SOFT preference only, applied within
-    the fresh pool: it never overrides category_filter (illustrated_pun's
-    hard requirement) and never blocks publishing by making a topic
-    unavailable — if nothing fresh matches the week's theme, we fall back
-    to the normal fresh/recycle order exactly as before campaigns existed."""
-    candidates = _all_topics()
-    if category_filter:
-        candidates = [t for t in candidates if t["category"] == category_filter]
+    the fresh pool: it never overrides a format's declared eligibility and
+    never blocks publishing by making a topic unavailable — if nothing
+    fresh matches the week's theme, we fall back to the normal
+    fresh/recycle order exactly as before campaigns existed."""
+    candidates = [t for t in _all_topics() if _eligible(t, format_name)]
     if not candidates:
         return None
 
@@ -103,6 +164,45 @@ def _topic_by_name(name):
         if t["topic"] == name:
             return t
     return None
+
+
+def all_pillars():
+    """Every distinct topics.json `category` currently in use. Derived from
+    the data, not a hardcoded list, so a brand-new pillar (e.g. adding
+    "Phrasal verbs" to topics.json) shows up in pillar-coverage reporting
+    automatically — the same principle topic_generation.py already uses
+    for its own category list."""
+    return sorted({t["category"] for t in _all_topics()})
+
+
+def pillar_last_covered(memory, pillar):
+    """Most recent date any topic in this pillar (topics.json `category`)
+    was covered — the per-pillar twin of _last_coverage's per-topic
+    tracking (content-pipeline-architecture.md §6). Returns None if this
+    pillar has never been covered at all, including a pillar that didn't
+    exist yet when older history entries were recorded."""
+    dates = []
+    for entry in _topic_history(memory):
+        if not entry.get("date"):
+            continue
+        topic = _topic_by_name(entry["topic"])
+        if topic is not None and topic.get("category") == pillar:
+            dates.append(entry["date"])
+    return max(dates) if dates else None
+
+
+def days_since_pillar_covered(memory, pillar, today=None):
+    """None if the pillar has never been covered (caller should treat that
+    as "worse than any number of days", not skip it)."""
+    today = today or datetime.date.today()
+    last = pillar_last_covered(memory, pillar)
+    if last is None:
+        return None
+    try:
+        last_date = datetime.date.fromisoformat(last)
+    except ValueError:
+        return None
+    return (today - last_date).days
 
 
 def get_due_review_topic(memory, today=None):

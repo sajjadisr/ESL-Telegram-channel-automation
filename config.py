@@ -158,6 +158,15 @@ FRESH_TOPICS_PER_DAY = 1
 # automatic thing rather than something that only happens if you remember.
 RECAP_EVERY_N_POSTS = 14
 
+# Font file used to render the progress-recap image card (content-pipeline-
+# architecture.md §8) — must be able to render Persian glyphs (e.g.
+# Vazirmatn: https://github.com/rastikerdar/vazirmatn, SIL OFL licensed).
+# NOT bundled in this repo; download it and place it at this path. If it's
+# missing, recap_card.render_recap_card raises FontNotAvailable and main.py
+# falls back to the plain-text progress_recap post — the image card is
+# strictly additive, never a hard requirement for the recap to go out.
+RECAP_FONT_PATH = "assets/fonts/Vazirmatn-Bold.ttf"
+
 # When the number of not-yet-covered topics in topics.json drops to this
 # level or below, main.py both alerts the admin (Audit #1) AND asks the
 # model to propose new topics itself (topic_generation.py) — the pool has

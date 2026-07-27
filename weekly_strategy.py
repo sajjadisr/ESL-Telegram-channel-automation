@@ -1,5 +1,6 @@
 from config import (
     FEEDBACK_PATH, STRATEGY_PATH, SCHEDULE_PATH, MIN_FEEDBACK_FOR_SCHEDULE_UPDATE, ANALYTICS_PATH,
+    MEMORY_PATH,
 )
 from database import get_recent_posts
 from memory import load_json, save_json
@@ -10,6 +11,7 @@ from telegram_bot import send_admin_message
 import analytics
 import audience_profile
 import experiments
+import topic_selection
 
 MIN_SAMPLES_TO_FLAG_EXPERIMENT = 3  # per variant — small on purpose, this
 # channel runs at most ~1 quiz and ~1 vote_poll a week, so "enough data" is
@@ -38,6 +40,19 @@ def build_intelligence_report_text():
         lines.append("دسته‌های ضعیف مخاطب (طبق کوییزهای واقعی): " + "، ".join(profile["weak_categories"]))
     if profile.get("strong_categories"):
         lines.append("دسته‌های قوی مخاطب: " + "، ".join(profile["strong_categories"]))
+
+    # Pillar-coverage observability (§6, Stage 1 — visibility only, no
+    # change to what actually gets scheduled). schedule_builder already
+    # balances *formats* across the week; nothing before this watched
+    # whether a whole *pillar* (topics.json category) quietly went dark for
+    # weeks just because of which formats happened to draw which topics.
+    memory = load_json(MEMORY_PATH, {})
+    pillar_bits = []
+    for pillar in topic_selection.all_pillars():
+        days = topic_selection.days_since_pillar_covered(memory, pillar)
+        pillar_bits.append(f"{pillar}: {'هنوز پوشش نداده' if days is None else f'{days} روز پیش'}")
+    if pillar_bits:
+        lines.append("پوشش دسته‌ها (آخرین بار هر دسته کِی پوشش داده شده): " + "، ".join(pillar_bits))
 
     active_exp = experiments.get_active_experiment()
     if active_exp:

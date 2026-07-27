@@ -22,10 +22,29 @@ IMAGE_PALETTE = (
     "Color palette: burnt orange #e76f51, coral #f4a261, warm sand #e9c46a, "
     "deep purple #264653 background."
 )
+# Same four colors as IMAGE_PALETTE above, as a lookup dict — for code that
+# composites pixels directly (recap_card.py) rather than describing the
+# palette in prose to an image-generation model.
+IMAGE_PALETTE_HEX = {
+    "burnt_orange": "#e76f51",
+    "coral": "#f4a261",
+    "warm_sand": "#e9c46a",
+    "deep_purple": "#264653",
+}
 IMAGE_NEGATIVE = (
     "Square format. No text, no letters, no words or captions anywhere in the "
     "image. No logos or brand marks. No photorealistic human faces — keep "
     "faces simple and stylized."
+)
+
+# Fixed persona (telegram-esl-virality-blueprint.md §3.1: "lock a persona and
+# don't drift... inconsistency is the fastest way for AI-generated content to
+# read as AI-generated content"). Same pattern as IMAGE_STYLE/IMAGE_PALETTE
+# above: pasted verbatim into every prompt that produces audience-facing
+# voice (generation + poll/quiz), not independently re-worded per builder.
+PERSONA = (
+    "تو یک معلم زبان انگلیسی حرفه‌ای و مدیر محتوای کانال تلگرامی @InEnglish هستی — "
+    "آموزش انگلیسی به فارسی‌زبانان مبتدی (سطح A1–A2)."
 )
 
 # ---------------------------------------------------------------------------
@@ -39,6 +58,8 @@ FORMATS = {
         "needs_image": False,
         "needs_poll": None,
         "use_tiers": True,
+        # No category_filter: micro_scene is the default fresh-content
+        # carrier and draws from any pillar (content-pipeline-architecture.md §4).
         "guidance": (
             "یه صحنه‌ی کوتاه و واقعی به زبان انگلیسیِ ساده بساز (۲ تا ۴ خط دیالوگ یا روایت، خودِ دیالوگ/روایت "
             "انگلیسیه، نه فارسی) که توش موضوع امروز به‌طور طبیعی پیش بیاد — نه یه جمله‌ی نمونه‌ی خشک. صحنه باید "
@@ -51,6 +72,13 @@ FORMATS = {
         "needs_image": True,
         "needs_poll": None,
         "use_tiers": False,
+        # Was main.py's ILLUSTRATED_PUN_CATEGORY constant + a hardcoded
+        # `if format_name == "illustrated_pun"` branch in _select_topic;
+        # now a declared part of the format itself, so topic_selection's
+        # generalized _eligible() check enforces it without main.py
+        # needing to know illustrated_pun exists (content-pipeline-
+        # architecture.md §5).
+        "category_filter": "Idioms",
         "guidance": (
             "این فرمت فقط برای اصطلاحاتی جواب می‌ده که فاصله‌ی واضحی بین معنی تحت‌اللفظی و معنی واقعی دارن "
             "(مثل break the ice، piece of cake، under the weather). کپشن رو کوتاه نگه دار (۳ تا ۵ خط) — خود "
@@ -62,6 +90,7 @@ FORMATS = {
         "needs_image": False,
         "needs_poll": None,
         "use_tiers": False,
+        "category_filter": ["Common mistakes", "Persian transfer errors"],
         "guidance": (
             "یه جمله‌ی غلط بساز که دقیقاً همون اشتباه رایجیه که فارسی‌زبان‌ها موقع استفاده از این نکته می‌کنن. "
             "جمله‌ی غلط رو نشون بده، بعد جواب درست + یه توضیح خیلی کوتاه رو داخل یه تگ <tg-spoiler>...</tg-spoiler> "
@@ -73,9 +102,48 @@ FORMATS = {
         "needs_image": False,
         "needs_poll": None,
         "use_tiers": True,
+        "category_filter": ["Vocabulary", "Phrasal verbs"],
         "guidance": (
             "یه کلمه یا عبارت رو معرفی کن، معنیش رو بگو، و توی یه جمله‌ی خیلی ساده و روزمره نشونش بده. این "
             "پست قراره زمینه رو برای یه صحنه یا اصطلاح آینده آماده کنه، پس ساده و مستقیم نگهش دار."
+        ),
+    },
+    "idiom_proverb_bridge": {
+        "label": "پل اصطلاح و ضرب‌المثل",
+        "needs_image": False,
+        "needs_poll": None,
+        "use_tiers": False,
+        # Hard restriction, not a prompt instruction (§4): only ever draw a
+        # topic already tagged has_fa_equivalent AND carrying a verified
+        # fa_equivalent string (topics.json) — this format's whole job is a
+        # cultural claim a native reader catches immediately if it's wrong,
+        # so it must never be asked to invent or recall a pairing on its own.
+        "category_filter": "Idioms",
+        "required_tags": ["has_fa_equivalent"],
+        "guidance": (
+            "این اصطلاح انگلیسی یه معادل ضرب‌المثل/اصطلاح فارسیِ واقعی و شناخته‌شده داره که پایین‌تر (توی "
+            "«معادل فارسی») برات دقیقاً آورده شده — همون رو عیناً استفاده کن، خودت یکی دیگه اختراع نکن یا "
+            "عوضش نکن. اول اصطلاح انگلیسی و معنیش رو با یه مثال کوتاه نشون بده، بعد معادل فارسی رو بیار و "
+            "توی یه یا دو جمله نشون بده چقدر شبیه هم‌اند — لحن باید «نگاه کن، خودمون هم دقیقاً همین جمله رو "
+            "داریم!» باشه، نه یه توضیح خشک زبان‌شناسی."
+        ),
+    },
+    "textbook_vs_real": {
+        "label": "کتابی در مقابل واقعی",
+        "needs_image": False,
+        "needs_poll": None,
+        "use_tiers": True,
+        # No category_filter: this contrast (formal/textbook phrasing vs.
+        # what people actually say) can apply to a grammar point, a fixed
+        # phrase, or a Persian-transfer register error alike — it's a
+        # *shape* difference from spot_mistake, not tied to one pillar.
+        # error_type:register-tagged topics are simply a good natural fit,
+        # not a hard requirement (§4 lists it as "preferred", not required).
+        "guidance": (
+            "نشون بده معلم‌های مدرسه/کتاب‌های قدیمی معمولاً چی برای این نکته یاد می‌دن، در مقابل چیزی که یه "
+            "آدم واقعی امروز توی مکالمه‌ی روزمره می‌گه. هر دو باید صحیح باشن — این «غلط در مقابل درست» نیست، "
+            "«رسمی/کتابی در مقابل خودمونی/رایج» است. لحنش باید شیطنت‌آمیز و کمی غافلگیرکننده باشه («توی کتاب "
+            "اینو یاد گرفتی، ولی هیچ‌کس اینجوری حرف نمی‌زنه»)، نه تحقیرآمیز نسبت به معلم‌ها یا کتاب‌های درسی."
         ),
     },
     "progress_recap": {
@@ -246,6 +314,15 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
 موضوعاتی که این چند هفته پوشش داده شدن:
 {items}
 """
+    elif format_name == "idiom_proverb_bridge":
+        # topic_selection._eligible already guarantees this topic is tagged
+        # has_fa_equivalent, but fa_equivalent itself (the actual verified
+        # proverb string) is a separate topics.json field — hand it over
+        # explicitly rather than relying on the model to recall or invent
+        # one (see prompts.FORMATS["idiom_proverb_bridge"]'s comment).
+        fa_equivalent = topic.get("fa_equivalent")
+        if fa_equivalent:
+            context_block = f"\nمعادل فارسی (عیناً همین رو استفاده کن): {fa_equivalent}\n"
 
     tier_block = TIER_INSTRUCTIONS if fmt["use_tiers"] else ""
 
@@ -260,7 +337,7 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
     profile_block = ("\nپروفایل مخاطب (بر اساس داده‌ی واقعی کوییز/نظرسنجی):\n" + profile_note) if profile_note else ""
     campaign_block = ("\nزمینه‌ی کمپین این هفته:\n" + campaign_note) if campaign_note else ""
 
-    return f"""تو یک معلم زبان انگلیسی حرفه‌ای و مدیر محتوای کانال تلگرامی @InEnglish هستی — آموزش انگلیسی به فارسی‌زبانان مبتدی.
+    return f"""{PERSONA}
 
 هویت کانال: {memory.get('channel_identity')}
 مخاطب: {memory.get('target_students')}
@@ -303,28 +380,71 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
 فقط متن نهایی پست رو بنویس (با تگ‌های HTML لازم)، بدون توضیح اضافه یا مقدمه‌چینی."""
 
 
+_PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹"
+
+
+def _persian_numeral(n):
+    return "".join(_PERSIAN_DIGITS[int(d)] for d in str(n))
+
+
+# Assembled checklist (content-pipeline-architecture.md §7) — replaces the
+# old hand-spliced f-string that hardcoded Persian numerals ۱ through ۱۱ and
+# threaded tier_check/salience_check conditionals directly into it. Every
+# rule here is (applicability_condition, text); build_review_prompt below
+# filters to what actually applies for this format/topic and renders the
+# numbering programmatically, so adding a new format-specific check (like
+# idiom_proverb_bridge's proverb-authenticity line) is "append one tuple",
+# never "edit the f-string and recount by hand".
+#
+# The first 9 are unconditional — they applied to every format before this
+# refactor and still do. Conditions after that mirror what the old
+# tier_check/salience_check placeholders used to encode, except the rule is
+# now omitted entirely when it doesn't apply, instead of being kept as a
+# numbered "(این فرمت ... لازم نداره — رد شو.)" placeholder line.
+REVIEW_RULES = [
+    (lambda fmt: True, "صحت گرامری و املایی جمله‌های انگلیسی."),
+    (lambda fmt: True, "آیا پست یک قلاب واقعی دارد (شوخی/غافلگیری/تعامل) یا فقط یک مثال گرامری خشک است؟"),
+    (lambda fmt: True, "آیا فارسی متن، محاوره‌ای و روان است (نه ترجمه‌ای/کتابی) و آیا از تگ‌های HTML به‌جای Markdown استفاده شده؟"),
+    (lambda fmt: fmt["use_tiers"],
+     "هر سه لایه‌ی 🟢🟡🔴 حاضرن و لایه‌ی 🔴 هنوز در سطح مبتدی مونده (نه نکته‌ی پیشرفته)."),
+    (lambda fmt: True, "آیا محتوا واقعاً در سطح مبتدی (A1–A2) قابل‌فهمه، یا از واژگان/گرامر سطح بالاتر استفاده شده؟"),
+    (lambda fmt: True, "طول مناسب (نه خیلی کوتاه، نه خیلی بلند)."),
+    (lambda fmt: True,
+     "تعادل زبان: آیا بیشتر متن (روایت/دیالوگ اصلی) واقعاً به انگلیسیه، و فارسی فقط برای گلاسِ کلمات سخت یا یه "
+     "جمله‌ی کوتاه به کار رفته؟ اگه بیشتر پست به فارسی روایت شده و فقط یکی-دو جمله‌ی انگلیسی توش قایم شده، این "
+     "باید رد بشه (ok: false)."),
+    (lambda fmt: True,
+     "آیا متن هیچ کاراکتر عجیب یا از یه زبان/الفبای دیگه (نه فارسی، نه انگلیسی، نه اموجی معمولی) توش نیست؟ "
+     "اگه هست، رد کن."),
+    (lambda fmt: True,
+     "این متن عیناً توی ایتا و بله هم منتشر می‌شه. آیا جایی از متن به یه قابلیت اشاره می‌کنه که معلوم نیست "
+     "همه‌جا وجود داشته باشه — مثل «توی کامنت‌ها بگو»، «زیر پست بنویس»، «ریپلای کن»، «ری‌اکت بده»؟ اگه هست، "
+     "رد کن (ok: false)."),
+    (lambda fmt: fmt is not FORMATS.get("progress_recap"),
+     "آیا «{topic_text}» (یا معادل انگلیسیش) دقیقاً یک بار با تگ <b>...</b> پررنگ شده؟ اگه اصلاً پررنگ نشده، "
+     "یا بیشتر از یک بار پررنگ شده، رد کن."),
+    (lambda fmt: fmt is not FORMATS.get("progress_recap"),
+     "آیا توی همین پست چند تا عضو دیگه از همون دسته (مثلاً چند تا رنگ، چند تا عضو خانواده، چند تا روز هفته) "
+     "هم پشت سر هم معرفی شدن؟ اگه آره، رد کن — این پست باید فقط روی یک مورد تمرکز کنه."),
+    # idiom_proverb_bridge's one format-specific check (§4) — the concrete
+    # example this refactor was done for: this is "append one tuple", not
+    # "edit the f-string and renumber everything after it".
+    (lambda fmt: fmt is FORMATS.get("idiom_proverb_bridge"),
+     "آیا ضرب‌المثل فارسی‌ای که توی پست اشاره شده، چیزیه که یه فارسی‌زبان واقعاً می‌شناسه — نه ساختگی، نه "
+     "زورکی، و نه صرفاً ترجمه‌ی کلمه‌به‌کلمه‌ی خودِ اصطلاح انگلیسی؟ اگه مطمئن نیستی این ضرب‌المثل واقعاً "
+     "رایجه، رد کن (ok: false)."),
+]
+
+
 def build_review_prompt(content, format_name, topic_text=None):
     fmt = FORMATS[format_name]
-    tier_check = "۴. هر سه لایه‌ی 🟢🟡🔴 حاضرن و لایه‌ی 🔴 هنوز در سطح مبتدی مونده (نه نکته‌ی پیشرفته)." \
-        if fmt["use_tiers"] else "۴. (این فرمت لایه‌بندی لازم نداره — رد شو.)"
-    salience_check = (
-        f"۱۰. آیا «{topic_text}» (یا معادل انگلیسیش) دقیقاً یک بار با تگ <b>...</b> پررنگ شده؟ "
-        "اگه اصلاً پررنگ نشده، یا بیشتر از یک بار پررنگ شده، رد کن.\n"
-        "۱۱. آیا توی همین پست چند تا عضو دیگه از همون دسته (مثلاً چند تا رنگ، چند تا عضو خانواده، "
-        "چند تا روز هفته) هم پشت سر هم معرفی شدن؟ اگه آره، رد کن — این پست باید فقط روی یک مورد تمرکز کنه."
-        if format_name != "progress_recap" else "۱۰. (این فرمت هدف واحد نداره — رد شو.)"
+    applicable = [text for cond, text in REVIEW_RULES if cond(fmt)]
+    checklist = "\n".join(
+        f"{_persian_numeral(i + 1)}. {text.format(topic_text=topic_text)}"
+        for i, text in enumerate(applicable)
     )
     return f"""متن زیر یک پست کانال تلگرامی آموزش انگلیسی مبتدی‌محور (@InEnglish) است. آن را از نظر موارد زیر بررسی کن:
-۱. صحت گرامری و املایی جمله‌های انگلیسی.
-۲. آیا پست یک قلاب واقعی دارد (شوخی/غافلگیری/تعامل) یا فقط یک مثال گرامری خشک است؟
-۳. آیا فارسی متن، محاوره‌ای و روان است (نه ترجمه‌ای/کتابی) و آیا از تگ‌های HTML به‌جای Markdown استفاده شده؟
-{tier_check}
-۵. آیا محتوا واقعاً در سطح مبتدی (A1–A2) قابل‌فهمه، یا از واژگان/گرامر سطح بالاتر استفاده شده؟
-۶. طول مناسب (نه خیلی کوتاه، نه خیلی بلند).
-۷. تعادل زبان: آیا بیشتر متن (روایت/دیالوگ اصلی) واقعاً به انگلیسیه، و فارسی فقط برای گلاسِ کلمات سخت یا یه جمله‌ی کوتاه به کار رفته؟ اگه بیشتر پست به فارسی روایت شده و فقط یکی-دو جمله‌ی انگلیسی توش قایم شده، این باید رد بشه (ok: false).
-۸. آیا متن هیچ کاراکتر عجیب یا از یه زبان/الفبای دیگه (نه فارسی، نه انگلیسی، نه اموجی معمولی) توش نیست؟ اگه هست، رد کن.
-۹. این متن عیناً توی ایتا و بله هم منتشر می‌شه. آیا جایی از متن به یه قابلیت اشاره می‌کنه که معلوم نیست همه‌جا وجود داشته باشه — مثل «توی کامنت‌ها بگو»، «زیر پست بنویس»، «ریپلای کن»، «ری‌اکت بده»؟ اگه هست، رد کن (ok: false).
-{salience_check}
+{checklist}
 
 متن:
 \"\"\"{content}\"\"\"
@@ -362,7 +482,7 @@ def build_poll_prompt(related_posts, topic, format_name, recent_titles=None,
         '{"question": "...", "options": ["...", "..."]}'
     )
 
-    return f"""تو مدیر محتوای کانال تلگرامی @InEnglish هستی — آموزش انگلیسی به فارسی‌زبانان مبتدی (A1–A2).
+    return f"""{PERSONA}
 
 فرمت: {fmt['label']}
 {fmt['guidance']}
@@ -448,6 +568,23 @@ best_formats فقط باید از بین فرمت‌های واقعاً موجو
   "best_formats": ["یکی یا چند تا از کلیدهای بالا، مثلاً micro_scene"]
 }}
 """
+
+
+def build_recap_title_prompt(recap_titles):
+    """One short, warm Persian sentence for the recap image card's title
+    (recap_card.py) — e.g. "این چند هفته با هم چی یاد گرفتیم؟". Deliberately
+    NOT run through build_generation_prompt's full pipeline/review loop:
+    this is one decorative line on an image, not audience-facing teaching
+    content, so the lighter weight is a proportionate choice, not a
+    shortcut taken on something that needs the same scrutiny as an actual
+    lesson."""
+    items = "\n".join(f"- {t}" for t in recap_titles)
+    return f"""{PERSONA}
+
+موضوعاتی که این چند هفته پوشش داده شدن:
+{items}
+
+یک جمله‌ی کوتاه، گرم و محاوره‌ای فارسی (حداکثر ۸-۹ کلمه) بنویس که عنوان یه پست «مرور پیشرفت» باشه — چیزی مثل "این چند هفته با هم چی یاد گرفتیم؟". فقط همون یک جمله رو بنویس، بدون گیومه، بدون توضیح اضافه."""
 
 
 def build_topic_generation_prompt(existing_topics, count, categories):

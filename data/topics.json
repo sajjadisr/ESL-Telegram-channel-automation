@@ -312,7 +312,11 @@
   {
     "level": "A2",
     "category": "Idioms",
-    "topic": "Piece of cake"
+    "topic": "Piece of cake",
+    "tags": [
+      "has_fa_equivalent"
+    ],
+    "fa_equivalent": "مثل آب خوردن"
   },
   {
     "level": "A2",
@@ -342,7 +346,11 @@
   {
     "level": "A2",
     "category": "Idioms",
-    "topic": "Speak of the devil"
+    "topic": "Speak of the devil",
+    "tags": [
+      "has_fa_equivalent"
+    ],
+    "fa_equivalent": "چه حلال‌زاده"
   },
   {
     "level": "A2",
@@ -352,12 +360,20 @@
   {
     "level": "A2",
     "category": "Idioms",
-    "topic": "When pigs fly"
+    "topic": "When pigs fly",
+    "tags": [
+      "has_fa_equivalent"
+    ],
+    "fa_equivalent": "وقتی خورشید از مغرب طلوع کنه"
   },
   {
     "level": "A2",
     "category": "Idioms",
-    "topic": "Kill two birds with one stone"
+    "topic": "Kill two birds with one stone",
+    "tags": [
+      "has_fa_equivalent"
+    ],
+    "fa_equivalent": "با یک تیر دو نشان زدن"
   },
   {
     "level": "A2",
@@ -577,7 +593,11 @@
   {
     "level": "A2",
     "category": "Idioms",
-    "topic": "Get cold feet"
+    "topic": "Get cold feet",
+    "tags": [
+      "has_fa_equivalent"
+    ],
+    "fa_equivalent": "پا پس کشیدن"
   },
   {
     "level": "A2",
@@ -603,5 +623,374 @@
     "level": "A2",
     "category": "Idioms",
     "topic": "Spill the beans"
+  },
+  {
+    "topic": "Give up",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Look for",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Look after",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Find out",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Get up",
+    "level": "A1",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Turn off",
+    "level": "A1",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Turn on",
+    "level": "A1",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Put on",
+    "level": "A1",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Take off",
+    "level": "A1",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Come back",
+    "level": "A1",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Go on",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Pick up",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Run out of",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Break down",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Check in",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Check out",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Hang out",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Fill out",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Wake up",
+    "level": "A1",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Set up",
+    "level": "A2",
+    "category": "Phrasal verbs",
+    "eligible_formats": [
+      "vocab_spotlight",
+      "spot_mistake",
+      "micro_scene"
+    ]
+  },
+  {
+    "topic": "Married to (not married with)",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:preposition"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "Afraid of (not afraid from)",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:preposition"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "Listen to (not listen alone)",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:preposition"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "Depend on (not depend to)",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:preposition"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "Interested in (not interested to)",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:preposition"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "Good at (not good in)",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:preposition"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "Arrive at/in (not arrive to)",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:preposition"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "A/an before a job (\"I am a teacher\")",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:article"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "No \"the\" before general/plural nouns",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:article"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "\"The\" before uncountable nouns (money, water)",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:article"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "Question word order (do/does/did before the subject)",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:word_order"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "Adjective before the noun, not after",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:word_order"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
+  },
+  {
+    "topic": "\"I am agree\" — no \"am/is/are\" before a plain verb",
+    "level": "A2",
+    "category": "Persian transfer errors",
+    "tags": [
+      "error_type:register"
+    ],
+    "eligible_formats": [
+      "spot_mistake",
+      "micro_scene",
+      "textbook_vs_real"
+    ]
   }
 ]
