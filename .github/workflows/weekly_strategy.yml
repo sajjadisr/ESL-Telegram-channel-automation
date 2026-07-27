@@ -1,34 +1,63 @@
-name: Weekly Strategy Update
+# RECONSTRUCTED FILE — see NOT_IN_THIS_ZIP.md at the project root.
+#
+# Not included in this zip export, but story-removal-and-fixes.diff and
+# engagement_schedule.patch both show hunks applied *to* a real
+# weekly_strategy.yml already running in your repo. Rebuilt from those
+# fragments — diff against the live file on GitHub before replacing it.
+#
+# This is what actually calls weekly_strategy.py. Without it,
+# strategy.json/format_schedule.json/the audience profile never update on
+# their own — analytics.py, audience_profile.py, and schedule_builder.py all
+# have real logic, but nothing invokes the function that reads their output
+# and writes it back into next week's schedule unless this runs.
+
+name: Weekly Strategy
 
 on:
   schedule:
-    - cron: "0 14 * * 6"
+    # Friday, ahead of the new campaign week — campaigns._week_start()
+    # treats Saturday as day 0, so this lands before that boundary
+    # (12:00 UTC = ~15:30 Friday Tehran time, comfortably before Friday
+    # midnight local).
+    - cron: "0 12 * * 5"
   workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-strategy
+  cancel-in-progress: false
 
 jobs:
   strategy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          python-version: "3.11"
+          fetch-depth: 0
 
-      - run: pip install -r requirements.txt
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - run: python weekly_strategy.py
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run weekly strategy
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_BACKUP: ${{ secrets.GEMINI_API_KEY_BACKUP }}
-          # Optional — free (no credit card) fallback text model, tried only
-          # if every Gemini key above fails. Leave unset to run Gemini-only.
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+        run: python weekly_strategy.py
 
       - name: Commit updated strategy
+        if: always()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
@@ -46,7 +75,7 @@ jobs:
               echo "Pushed successfully."
               exit 0
             fi
-            echo "Push attempt $i failed (origin/main moved) — retrying..."
+            echo "Push attempt $i failed, retrying..."
             sleep $((RANDOM % 10 + 5))
           done
           echo "::error::Could not push after 5 attempts."

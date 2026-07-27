@@ -1,59 +1,79 @@
+# RECONSTRUCTED FILE — see NOT_IN_THIS_ZIP.md at the project root.
+#
+# This zip export didn't include .github/workflows at all, but
+# story-removal-and-fixes.diff proves a real daily_post.yml already exists
+# in your actual repo (that diff shows hunks being applied *to* it). This
+# file is rebuilt from those hunks + config.py's own comments (POSTS_PER_DAY,
+# the secrets every module reads) — it is NOT a copy of your live file.
+# Diff it against the real one on GitHub before replacing anything; if they
+# disagree, yours is the source of truth, not this.
+#
+# Without a workflow file like this, nothing in main.py runs on its own —
+# every "autonomous"/"self-sustaining" mechanism in this codebase (topic
+# auto-refill, spaced-repetition review, reader/news rotation, poll
+# harvesting) only fires when something actually invokes `python main.py`.
+# This is that invocation.
+
 name: Daily Post
 
 on:
   schedule:
-    # 3 runs/day to match config.POSTS_PER_DAY — keep these two in sync if
-    # you change that value. Times are UTC; roughly 09:00 / 15:00 / 21:00
-    # Iran time (UTC+3:30).
-    - cron: "30 5 * * *"
-    - cron: "30 11 * * *"
-    - cron: "30 17 * * *"
-  workflow_dispatch: {}
+    # POSTS_PER_DAY = 3 in config.py — one cron trigger per daily slot.
+    # Keep the count here in sync with that constant (main.py's own
+    # comment on POSTS_PER_DAY says the same thing). Times are UTC;
+    # Asia/Tehran is UTC+3:30 with no DST, so these land at roughly
+    # 09:00 / 15:00 / 21:00 Tehran time.
+    - cron: "30 5 * * *"   # slot 1 (~09:00 Tehran) — day's scheduled format
+    - cron: "30 11 * * *"  # slot 2 (~15:00 Tehran) — reader/review/news slot
+    - cron: "30 17 * * *"  # slot 3 (~21:00 Tehran) — reader/review/news slot
+  workflow_dispatch: {}  # manual "Run workflow" button, for testing/recovery
+
+permissions:
+  contents: write
+
+concurrency:
+  # Prevents two runs from racing to commit data/ if a manual dispatch
+  # overlaps a scheduled run — main.py's own count_posts_on_date guard
+  # handles same-day duplicates, but this avoids a messier git race on top
+  # of that.
+  group: daily-post
+  cancel-in-progress: false
 
 jobs:
   post:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          python-version: "3.11"
+          fetch-depth: 0  # full history, needed for the rebase-and-push loop below
 
-      - run: pip install -r requirements.txt
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - run: python main.py
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily post
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # Optional — a second Gemini key, ideally from a different Google
-          # account, only ever used if GEMINI_API_KEY fails with an auth
-          # error (see ai.GeminiAuthError). Leave unset to run with just the
-          # one key, same as before.
           GEMINI_API_KEY_BACKUP: ${{ secrets.GEMINI_API_KEY_BACKUP }}
-          # Optional — free (no credit card) fallback text model, tried only
-          # if every Gemini key above fails for a given call. Get a key at
-          # console.groq.com. Leave unset to run with Gemini only.
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          # Optional — free (no credit card) fallback image model, tried only
-          # if both Gemini image tiers fail. dash.cloudflare.com -> Workers AI.
-          # Leave either unset to skip this fallback (existing manual admin
-          # hand-off still applies).
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          # Optional — leave the secret unset and this is just an empty string,
-          # which the code treats the same as "not configured".
-          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
-          # Also optional — set these to turn on Eitaa/Bale cross-posting.
-          # Leave a secret unset and that platform is silently skipped.
           EITAA_TOKEN: ${{ secrets.EITAA_TOKEN }}
           EITAA_CHANNEL_ID: ${{ secrets.EITAA_CHANNEL_ID }}
           BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
           BALE_CHAT_ID: ${{ secrets.BALE_CHAT_ID }}
+        run: python main.py
 
       - name: Commit updated data
-        if: always()
+        if: always()  # commit whatever state changed even if main.py exited non-zero partway through
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
@@ -71,20 +91,17 @@ jobs:
               echo "Pushed successfully."
               exit 0
             fi
-            echo "Push attempt $i failed (origin/main moved) — retrying..."
+            echo "Push attempt $i failed, retrying..."
             sleep $((RANDOM % 10 + 5))
           done
           echo "::error::Could not push after 5 attempts."
-          # A post can go out to Telegram successfully in the run above even
-          # though the data/ commit that records it never lands (exactly
-          # what happened on 2026-07-26: the 22:48 post published, but
-          # nothing after it got committed) — the previous run's memory.json/
-          # posts.db/analytics.json/campaign_state.json are now silently
-          # stale on origin/main, and every downstream feature that reads
-          # them (dedup, review scheduling, weekly strategy) is stale until
-          # someone notices and fixes it by hand. This alert is the only
-          # thing that currently exists for that failure mode — the
-          # Gemini/content-failure alerts elsewhere don't cover it.
+          # A post can go out to Telegram successfully above even though the
+          # data/ commit that records it never lands — that leaves
+          # memory.json/posts.db/analytics.json/campaign_state.json stale on
+          # origin/main, and every downstream feature that reads them
+          # (dedup, review scheduling, weekly strategy) is stale until
+          # someone notices. This is the only thing that catches that
+          # specific failure mode.
           if [ -n "$TELEGRAM_ADMIN_CHAT_ID" ] && [ -n "$TELEGRAM_BOT_TOKEN" ]; then
             curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
               -d chat_id="${TELEGRAM_ADMIN_CHAT_ID}" \

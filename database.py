@@ -25,18 +25,41 @@ def get_conn():
     cols = [row[1] for row in conn.execute("PRAGMA table_info(posts)")]
     if "format" not in cols:
         conn.execute("ALTER TABLE posts ADD COLUMN format TEXT")
+    # Graded-reader progress tracking (reader.py). Added the same way
+    # `format` was added above — a real column, queried with SELECT MAX(),
+    # not recovered by regex-parsing AI-generated prose the way the old
+    # story_installment format did (see story-removal-and-fixes.diff).
+    if "story_id" not in cols:
+        conn.execute("ALTER TABLE posts ADD COLUMN story_id TEXT")
+    if "chunk_index" not in cols:
+        conn.execute("ALTER TABLE posts ADD COLUMN chunk_index INTEGER")
     return conn
 
 
-def save_post(date, format_name, category, level, title, content, keywords, status):
+def save_post(date, format_name, category, level, title, content, keywords, status,
+              story_id=None, chunk_index=None):
     conn = get_conn()
     conn.execute(
-        "INSERT INTO posts (date, format, category, level, title, content, keywords, status) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (date, format_name, category, level, title, content, keywords, status),
+        "INSERT INTO posts (date, format, category, level, title, content, keywords, status, "
+        "story_id, chunk_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (date, format_name, category, level, title, content, keywords, status,
+         story_id, chunk_index),
     )
     conn.commit()
     conn.close()
+
+
+def get_last_published_chunk(story_id):
+    """Ground truth for "what's the next chunk of this story" — a real
+    query against the durable, already-committed-every-run posts table,
+    not a cache that can silently go stale (see reader.py)."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT MAX(chunk_index) FROM posts WHERE story_id = ? AND status = 'published'",
+        (story_id,),
+    ).fetchone()
+    conn.close()
+    return row[0] if row and row[0] is not None else None
 
 
 def update_post_content(post_id, content):

@@ -33,6 +33,8 @@ import campaigns
 import audience_profile
 import experiments
 import analytics
+import reader
+import news
 
 MAX_REVIEW_ATTEMPTS = 2
 ILLUSTRATED_PUN_CATEGORY = "Idioms"
@@ -71,6 +73,19 @@ def maybe_alert_low_topic_supply(memory):
                 f"و تلاش خودکار برای اضافه‌کردن موضوع جدید این‌بار جواب نداد. یه نگاه بنداز — "
                 f"شاید لازم باشه دستی چندتا موضوع مبتدی (A1–A2) اضافه کنی."
             )
+
+
+def maybe_alert_low_story_supply(memory):
+    """Mirrors maybe_alert_low_topic_supply, but for the graded-reader
+    library — no auto-generation here (a good story needs real curation,
+    not a one-line prompt), so this is alert-only."""
+    if reader.low_supply_warning_needed(memory):
+        remaining = reader.remaining_untouched_stories(memory)
+        send_admin_message(
+            f"⚠️ فقط {remaining} داستان تازه (شروع‌نشده) توی data/reader_library.json باقی مونده. "
+            f"وقتی به صفر برسه، فرمت «داستان مرحله‌ای» خودش رو رد می‌کنه تا موجودی تمدید بشه — "
+            f"یه نگاه بنداز و چندتا داستان جدید (از قبل بخش‌بندی‌شده به چند تکه) اضافه کن."
+        )
 
 
 def resolve_today_format():
@@ -367,14 +382,40 @@ def main():
     # serve — see the comment on REVIEW_INTERVALS_DAYS in config.py before
     # changing either number.
     review_topic, review_stage, review_last_format = (None, None, None)
+    reader_data = None
+    news_item = None
     if slot_number > FRESH_TOPICS_PER_DAY:
         if fmt["needs_poll"] or fmt["needs_image"]:
             format_name = DEFAULT_EXTRA_SLOT_FORMAT
             fmt = FORMATS[format_name]
-        review_topic, review_stage, review_last_format = get_due_review_topic(memory)
-        if review_topic:
-            format_name = "vocab_spotlight" if review_last_format == "spot_mistake" else "spot_mistake"
-            fmt = FORMATS[format_name]
+
+        # Extra slots beyond the weekday-scheduled one, in priority order:
+        # 1) the first extra slot always tries the graded reader (fixed
+        #    cadence keeps a serialized story moving one episode/day);
+        # 2) any later extra slot tries a due spaced-repetition review
+        #    first (existing behavior, unchanged in priority);
+        # 3) failing that, real news re-leveled at A1/A2;
+        # 4) failing that, falls through to the normal fresh/recycle topic
+        #    pool below, exactly as before this feature existed.
+        extra_slot_index = slot_number - FRESH_TOPICS_PER_DAY
+
+        if extra_slot_index == 1:
+            story, chunk_index, chunk_text, is_final = reader.get_next_installment(memory)
+            if story is not None:
+                format_name = "reader_installment"
+                fmt = FORMATS[format_name]
+                reader_data = (story, chunk_index, chunk_text, is_final)
+
+        if reader_data is None:
+            review_topic, review_stage, review_last_format = get_due_review_topic(memory)
+            if review_topic:
+                format_name = "vocab_spotlight" if review_last_format == "spot_mistake" else "spot_mistake"
+                fmt = FORMATS[format_name]
+            else:
+                news_item = news.fetch_news_item(memory)
+                if news_item:
+                    format_name = "news_relevel"
+                    fmt = FORMATS[format_name]
 
     if fmt["needs_poll"]:
         recent_titles = [row[0] for row in get_recent_posts(limit=7)]
@@ -417,8 +458,34 @@ def main():
         return
 
     maybe_alert_low_topic_supply(memory)
+    maybe_alert_low_story_supply(memory)
 
-    if review_topic:
+    if reader_data is not None:
+        story, chunk_index, chunk_text, is_final = reader_data
+        invented_idiom_mode = False
+        topic = {
+            "topic": f"{story['title']} — قسمت {chunk_index + 1}",
+            "level": story.get("level", "A1"),
+            "category": "Reader",
+        }
+        continuation_note = (
+            "این آخرین قسمت این داستانه — پایانش رو کامل و رضایت‌بخش تموم کن، بدون قلاب برای فردا."
+            if is_final else
+            "این قسمتِ آخرِ داستان نیست — با یه قلاب یا سوال واقعی برای قسمت بعد تموم کن."
+        )
+        extra_note = (
+            f"متن اصلیِ همین قسمت (بازنویسی‌ش کن به انگلیسیِ ساده‌ی A1-A2، رویدادها/شخصیت‌ها رو عوض نکن):\n"
+            f"{chunk_text}\n\n{continuation_note}"
+        )
+    elif news_item is not None:
+        invented_idiom_mode = False
+        topic = {"topic": news_item["title"], "level": "A2", "category": "News"}
+        extra_note = (
+            "خلاصه‌ی یه خبر واقعی و تازه (با جمله‌های خودت و در سطح A1-A2 بازنویسی‌ش کن، جمله‌های منبع رو "
+            "کپی نکن، و چیزی که توی خلاصه نیومده رو حدس نزن):\n"
+            f"{news_item['summary']}"
+        )
+    elif review_topic:
         topic = review_topic
         invented_idiom_mode = False
         ordinal = {0: "بار اول", 1: "بار دوم", 2: "بار سوم", 3: "بار چهارم"}.get(review_stage, "چند بارِ قبل")
@@ -469,6 +536,8 @@ def main():
         content=content,
         keywords=topic["topic"],
         status=status,
+        story_id=reader_data[0]["id"] if reader_data is not None else None,
+        chunk_index=reader_data[1] if reader_data is not None else None,
     )
 
     # Was `if status == "published" and not invented_idiom_mode:` — that
@@ -480,8 +549,17 @@ def main():
     # Idioms entry, "Break the ice", forever). Coverage should track "we
     # picked this topic and generated content for it", not "it got posted
     # automatically" — status is irrelevant here.
-    if not invented_idiom_mode:
+    #
+    # reader_data/news_item aren't topics.json entries at all — recording
+    # them into covered_topic_history would just be noise that grows
+    # memory.json forever without ever matching a real topic (get_next_topic
+    # and get_due_review_topic only look up names that exist in
+    # topics.json). Their own state (reader.READING_KEY, news.NEWS_SEEN_KEY)
+    # already lives in this same memory dict, so memory.json still needs
+    # saving either way — just without the topic-history write.
+    if reader_data is None and news_item is None and not invented_idiom_mode:
         record_topic_coverage(memory, topic["topic"], format_name, today_str)
+    if reader_data is not None or news_item is not None or not invented_idiom_mode:
         save_json(MEMORY_PATH, memory)
 
     print(f"پست منتشر شد ({format_name}): {topic['topic']}")
