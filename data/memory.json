@@ -46,5 +46,9 @@
   ],
   "successful_patterns": [
     "quiz_high: الکس می‌خواد بگه «من هر روز صبح قهوه می‌نوشم». به نظرت کدوم جمله درسته؟"
-  ]
+  ],
+  "reader_progress": {
+    "story_id": "ant_and_grasshopper",
+    "next_chunk_index": 0
+  }
 }
