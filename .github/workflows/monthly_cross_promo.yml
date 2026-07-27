@@ -13,7 +13,17 @@ name: Monthly Cross-Promo
 
 on:
   schedule:
-    - cron: "0 8 1 * *"  # 1st of each month, ~11:30 Tehran time
+    # 1st of each month, ~11:38 Tehran time. Minute deliberately off :00
+    # (the busiest mark in the hour on GitHub's scheduler — see
+    # daily_post.yml's comment for the full reasoning). No catch-up trigger
+    # here on purpose, and this one matters more than weekly_strategy's:
+    # scripts/send_cross_promo.py has NO dedup guard at all — it just sends
+    # the message unconditionally every time it's invoked (see its main()).
+    # A catch-up trigger would risk actually double-posting the cross-promo
+    # message to the real channel, which is worse than the occasional
+    # multi-hour delay this is meant to fix. Once-a-month cadence makes
+    # that delay low-stakes anyway.
+    - cron: "23 8 1 * *"
   workflow_dispatch: {}
 
 jobs:

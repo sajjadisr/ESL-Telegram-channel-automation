@@ -17,9 +17,18 @@ on:
   schedule:
     # Friday, ahead of the new campaign week — campaigns._week_start()
     # treats Saturday as day 0, so this lands before that boundary
-    # (12:00 UTC = ~15:30 Friday Tehran time, comfortably before Friday
-    # midnight local).
-    - cron: "0 12 * * 5"
+    # (12:19 UTC = ~15:49 Friday Tehran time, comfortably before Friday
+    # midnight local). Minute deliberately off :00 (the busiest mark in
+    # the hour on GitHub's scheduler — see daily_post.yml's comment for
+    # the full reasoning). No catch-up trigger here on purpose: unlike
+    # daily_post.yml, this job isn't idempotent against a duplicate run —
+    # weekly_strategy.py sends admin Telegram notifications with no
+    # "already ran this week" guard, so a second run would just double
+    # your own weekly report, not skip harmlessly. Once a week and
+    # admin-only, so an occasional delay is low-stakes; if you want a
+    # catch-up net here too later, it'd need a small guard added to
+    # weekly_strategy.py first (e.g. skip if already run this ISO week).
+    - cron: "19 12 * * 5"
   workflow_dispatch: {}
 
 permissions:
@@ -36,7 +45,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          # See daily_post.yml's checkout step for the full reasoning —
+          # same change, same validation.
+          fetch-depth: 1
 
       - name: Set up Python
         uses: actions/setup-python@v5

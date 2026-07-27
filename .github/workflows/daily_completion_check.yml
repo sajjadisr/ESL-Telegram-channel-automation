@@ -1,0 +1,40 @@
+# Dead-man's-switch for daily_post.yml — see scripts/check_daily_completion.py
+# for the full reasoning. Read-only: no commit step, nothing here ever
+# writes to the repo or posts to the channel, it only ever DMs the admin.
+
+name: Daily Completion Check
+
+on:
+  schedule:
+    # ~23:35 Tehran — after slot 3 (21:12 Tehran) AND its catch-up (21:57
+    # Tehran) in daily_post.yml have both had their chance, so this only
+    # fires once the day's real opportunities are exhausted, not while a
+    # catch-up is still legitimately pending.
+    - cron: "5 20 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check today's post count
+        env:
+          # config.py requires all three of these (no default) even though
+          # this script only ever calls send_admin_message — same secrets
+          # daily_post.yml already has configured.
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+        run: python scripts/check_daily_completion.py

@@ -90,6 +90,11 @@ EITAA_MAX_MESSAGE_LEN = 4096     # unconfirmed assumption — see comment above
 MESSAGE_LEN_SAFETY_MARGIN = 96
 
 DB_PATH = "data/posts.db"
+# The durable record is this file, not DB_PATH above. DB_PATH is a local
+# SQLite cache that database.py rebuilds from POSTS_JSONL_PATH whenever it's
+# missing (a fresh CI checkout, every single run, since it's gitignored) —
+# see database.py's module docstring. posts.db itself is never committed.
+POSTS_JSONL_PATH = "data/posts.jsonl"
 TOPICS_PATH = "data/topics.json"
 MEMORY_PATH = "data/memory.json"
 STRATEGY_PATH = "data/strategy.json"

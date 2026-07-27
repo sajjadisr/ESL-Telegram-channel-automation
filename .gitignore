@@ -1,3 +1,11 @@
 venv/
 __pycache__/
 *.pyc
+# NOTE: this line alone does nothing on its own — data/posts.db was already
+# committed to git before this entry existed, and .gitignore never affects
+# files that are already tracked. It only actually stops being tracked
+# after a one-time `git rm --cached data/posts.db` (see
+# scripts/migrate_posts_db_to_jsonl.py's docstring). Once that's done, the
+# durable record is data/posts.jsonl instead — see config.py /
+# database.py's module docstring.
+data/posts.db

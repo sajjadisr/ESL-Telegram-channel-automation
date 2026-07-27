@@ -74,10 +74,20 @@ original `sendPoll` bug from the failed run.
    existing `LIKE` keyword match, so near-duplicate topics in the same
    category ("Grocery shopping" vs. "Food and restaurant vocabulary") are
    at least visible to the model even when they don't share keywords.
-9. **Git hygiene** — no code change; `data/posts.db` is still committed
-   daily as noted in the audit. Worth a periodic `git count-objects -v` /
-   `git gc` check, or migrating to a JSON export instead of the raw
-   SQLite file, once volume grows.
+9. **Git hygiene** — actually fixed (was previously deferred as "revisit in
+   a year"). `data/posts.db` turned out to still be tracked despite already
+   being listed in `.gitignore` — that entry predates the file being
+   untracked, and `.gitignore` never retroactively affects an already-
+   tracked file, so it was quietly doing nothing. The real fix: SQLite is
+   still the query engine (`database.py`'s functions are unchanged), but
+   it's no longer what git tracks. Every insert/update is now also appended
+   as one line of JSON to `data/posts.jsonl` — that's the durable record —
+   and `data/posts.db` is rebuilt from it automatically whenever it's
+   missing (a fresh CI checkout, every run). `data/posts.db` was removed
+   from git tracking via `git rm --cached` (see
+   `scripts/migrate_posts_db_to_jsonl.py` for the one-time migration of the
+   existing rows). A new post is now a one-line diff, forever, instead of a
+   binary rewrite of the whole file.
 
 ## Not changed
 - Secrets hygiene was already good (audit confirmed no changes needed).

@@ -1,14 +1,27 @@
+import json
+import os
 import sqlite3
 
 from ai import find_stray_script_chars
-from config import DB_PATH
+from config import DB_PATH, POSTS_JSONL_PATH
 
 # Formats whose titles are not real curriculum topics (Audit #6).
 _META_FORMATS = ("progress_recap", "quiz", "vote_poll")
 
+# --- Git-hygiene fix (posts.db bloat, flagged in AUDIT_FIXES.md #9) --------
+# DB_PATH is now a disposable local cache, gitignored, never committed.
+# POSTS_JSONL_PATH is the actual durable record: every insert/update is
+# appended as one line of JSON, so a new post is a one-line diff forever —
+# no rewritten SQLite pages, no ever-growing binary in git history.
+#
+# get_conn() rebuilds DB_PATH from POSTS_JSONL_PATH whenever the file is
+# missing, which on CI is every single run (fresh checkout, gitignored).
+# Every query function below (search_related_posts, get_recent_posts, etc.)
+# is completely unchanged — SQLite is still the query engine, it just stops
+# being the thing git tracks.
 
-def get_conn():
-    conn = sqlite3.connect(DB_PATH)
+
+def _create_schema(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,20 +46,72 @@ def get_conn():
         conn.execute("ALTER TABLE posts ADD COLUMN story_id TEXT")
     if "chunk_index" not in cols:
         conn.execute("ALTER TABLE posts ADD COLUMN chunk_index INTEGER")
+
+
+def _append_jsonl(record):
+    with open(POSTS_JSONL_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def _rebuild_db_from_jsonl():
+    """Replay data/posts.jsonl into a fresh DB_PATH. Explicit ids are used
+    on replay (not autoincrement order) so row identity is exact regardless
+    of anything about how the log was written — get_last_published_chunk,
+    update_post_content, etc. all key off this same id."""
+    conn = sqlite3.connect(DB_PATH)
+    _create_schema(conn)
+    if os.path.exists(POSTS_JSONL_PATH):
+        with open(POSTS_JSONL_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                if rec["op"] == "insert":
+                    conn.execute(
+                        "INSERT INTO posts (id, date, format, category, level, title, "
+                        "content, keywords, status, story_id, chunk_index) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (rec["id"], rec["date"], rec["format"], rec["category"],
+                         rec["level"], rec["title"], rec["content"], rec["keywords"],
+                         rec["status"], rec.get("story_id"), rec.get("chunk_index")),
+                    )
+                elif rec["op"] == "update":
+                    conn.execute(
+                        "UPDATE posts SET content = ? WHERE id = ?",
+                        (rec["content"], rec["id"]),
+                    )
+    conn.commit()
+    conn.close()
+
+
+def get_conn():
+    if not os.path.exists(DB_PATH):
+        _rebuild_db_from_jsonl()
+    conn = sqlite3.connect(DB_PATH)
+    _create_schema(conn)
     return conn
 
 
 def save_post(date, format_name, category, level, title, content, keywords, status,
               story_id=None, chunk_index=None):
     conn = get_conn()
-    conn.execute(
+    cur = conn.execute(
         "INSERT INTO posts (date, format, category, level, title, content, keywords, status, "
         "story_id, chunk_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (date, format_name, category, level, title, content, keywords, status,
          story_id, chunk_index),
     )
+    post_id = cur.lastrowid
     conn.commit()
     conn.close()
+    _append_jsonl({
+        "op": "insert", "id": post_id, "date": date, "format": format_name,
+        "category": category, "level": level, "title": title, "content": content,
+        "keywords": keywords, "status": status, "story_id": story_id,
+        "chunk_index": chunk_index,
+    })
+    return post_id
 
 
 def get_last_published_chunk(story_id):
@@ -67,6 +132,7 @@ def update_post_content(post_id, content):
     conn.execute("UPDATE posts SET content = ? WHERE id = ?", (content, post_id))
     conn.commit()
     conn.close()
+    _append_jsonl({"op": "update", "id": post_id, "content": content})
 
 
 def get_recent_posts(limit=15, published_only=True):
@@ -169,11 +235,16 @@ def get_titles_for_recap(limit=8):
 
 
 def remediate_stray_chars_in_db():
-    """Backfill pass: fix stray script chars in all published posts (Audit #16)."""
+    """Backfill pass: fix stray script chars in all published posts (Audit #16).
+    Goes through update_post_content (not raw SQL) so every content change
+    still lands in posts.jsonl — otherwise a fix applied here would hold for
+    the rest of this run's local DB but silently revert on the next fresh
+    checkout, since the durable record wouldn't know about it."""
     conn = get_conn()
     rows = conn.execute(
         "SELECT id, content FROM posts WHERE status = 'published'"
     ).fetchall()
+    conn.close()
     fixed = []
     for post_id, content in rows:
         stray = find_stray_script_chars(content)
@@ -182,9 +253,7 @@ def remediate_stray_chars_in_db():
         cleaned = content
         for ch in stray:
             cleaned = cleaned.replace(ch, "")
-        conn.execute("UPDATE posts SET content = ? WHERE id = ?", (cleaned, post_id))
+        update_post_content(post_id, cleaned)
         fixed.append({"id": post_id, "removed": stray})
-    conn.commit()
-    conn.close()
     return fixed
 

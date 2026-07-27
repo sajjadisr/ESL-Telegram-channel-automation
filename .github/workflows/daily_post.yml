@@ -18,14 +18,34 @@ name: Daily Post
 
 on:
   schedule:
-    # POSTS_PER_DAY = 3 in config.py — one cron trigger per daily slot.
-    # Keep the count here in sync with that constant (main.py's own
-    # comment on POSTS_PER_DAY says the same thing). Times are UTC;
-    # Asia/Tehran is UTC+3:30 with no DST, so these land at roughly
-    # 09:00 / 15:00 / 21:00 Tehran time.
-    - cron: "30 5 * * *"   # slot 1 (~09:00 Tehran) — day's scheduled format
-    - cron: "30 11 * * *"  # slot 2 (~15:00 Tehran) — reader/review/news slot
-    - cron: "30 17 * * *"  # slot 3 (~21:00 Tehran) — reader/review/news slot
+    # POSTS_PER_DAY = 3 in config.py — one PRIMARY cron trigger per daily
+    # slot, each followed ~45 min later by a CATCH-UP trigger that runs the
+    # exact same job. Keep the primary count in sync with POSTS_PER_DAY
+    # (main.py's own comment on that constant says the same thing).
+    #
+    # Why the catch-ups exist: GitHub's own docs say scheduled runs can be
+    # delayed, and under high enough load, dropped outright, especially
+    # around round minute marks (:00/:30) — see the "busy hours" issue this
+    # was added for. The catch-ups are safe to add for exactly one reason:
+    # main() (see main.py) checks count_posts_on_date() first thing and
+    # returns immediately once posted_today >= POSTS_PER_DAY — so if the
+    # primary already succeeded, its catch-up run is a fast no-op (a few
+    # seconds: checkout + harvest_pending_polls + the DB-rebuild check,
+    # nothing else). If the primary was delayed or dropped, the catch-up
+    # is what actually posts — main.py picks the day's Nth-post-so-far by
+    # COUNT, not by which literal cron fired, so it doesn't matter which of
+    # the two runs wins; whichever runs first becomes that slot.
+    #
+    # Times are UTC; Asia/Tehran is UTC+3:30 with no DST. Minutes are
+    # deliberately off :00/:30 (the two most-contended marks) — see
+    # NOT_IN_THIS_ZIP.md / chat history for the specific GitHub-docs-cited
+    # reasoning if this ever needs re-deriving.
+    - cron: "8 5 * * *"    # slot 1 primary  (~08:38 Tehran) — day's scheduled format
+    - cron: "53 5 * * *"   # slot 1 catch-up (~09:23 Tehran, ~45 min later)
+    - cron: "24 11 * * *"  # slot 2 primary  (~14:54 Tehran) — reader/review/news slot
+    - cron: "9 12 * * *"   # slot 2 catch-up (~15:39 Tehran)
+    - cron: "42 17 * * *"  # slot 3 primary  (~21:12 Tehran) — reader/review/news slot
+    - cron: "27 18 * * *"  # slot 3 catch-up (~21:57 Tehran)
   workflow_dispatch: {}  # manual "Run workflow" button, for testing/recovery
 
 permissions:
@@ -46,7 +66,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # full history, needed for the rebase-and-push loop below
+          # Was fetch-depth: 0 (full history) — that was the real
+          # compounding cost in the old posts.db problem: every run
+          # re-downloaded the ENTIRE accumulated history of a binary file
+          # that only ever grew. Now that posts.db isn't committed at all
+          # (see database.py / AUDIT_FIXES.md #9), a full clone no longer
+          # has that specific problem, but it would still slowly grow
+          # forever as a general matter of history size. depth: 1 is
+          # enough for this job's actual git usage (one local commit,
+          # `git pull --rebase origin main`, push) — verified locally by
+          # simulating a depth-1 clone against a remote that had moved
+          # forward from a concurrent push (weekly_strategy.yml /
+          # monthly_cross_promo.yml can each push independently while this
+          # is running, since they're in different concurrency groups):
+          # rebase and push both succeeded cleanly. Worth watching the
+          # first couple of live runs after this change, since that's a
+          # simulation, not GitHub's actual infrastructure.
+          fetch-depth: 1
 
       - name: Set up Python
         uses: actions/setup-python@v5
