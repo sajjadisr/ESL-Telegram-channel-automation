@@ -36,6 +36,11 @@
       "topic": "Family: mother",
       "format": "micro_scene",
       "date": "2026-07-27"
+    },
+    {
+      "topic": "Present continuous tense",
+      "format": "spot_mistake",
+      "date": "2026-07-27"
     }
   ],
   "avoid": [
