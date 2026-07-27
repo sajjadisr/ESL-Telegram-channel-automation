@@ -8,11 +8,29 @@ Design constraints baked in on purpose:
     it's the one format that breaks full automation (manual image posting),
     so scheduling more of them raises the admin's weekly workload independent
     of how well they perform.
-  - story_installment and vocab_spotlight get a floor of 1/week each — they
-    play a structural role (serial continuity; seeding vocabulary for later
-    posts) that a quiz-correct-rate/poll-vote signal can't really measure,
-    since neither format produces a poll. They can still win *extra* slots
-    if engagement flags them as best_formats too; they just can't drop to 0.
+  - vocab_spotlight and quiz each get a floor of 1/week, for two different
+    structural reasons a plain engagement score can't see:
+      * vocab_spotlight seeds vocabulary for later posts — a role that
+        doesn't show up as a poll/vote signal at all, since it produces no
+        poll.
+      * quiz is the *only* format that produces the correct-rate feedback
+        that analytics.compute_reward_score's REWARD_WEIGHT_LEARNING half
+        depends on (see config.py). Without a floor, a data-driven
+        reallocation can starve its own data supply: if best_formats ever
+        happens to exclude "quiz" (e.g. because strategy.json was built
+        from too little feedback to include it yet — see
+        MIN_FEEDBACK_FOR_SCHEDULE_UPDATE in config.py), the D'Hondt method
+        below would zero out its slots entirely, which means no more quiz
+        feedback ever arrives to correct that in a future week either.
+    Both can still win *extra* slots if engagement flags them as
+    best_formats too; neither can drop to 0.
+  - story_installment used to have the same kind of floor (serial
+    continuity was its structural role), but the format itself has been
+    retired: it was locked into a slot every week by this floor regardless
+    of how it performed, and it never once appeared in strategy.json's
+    best_formats — the freed slot(s) now go through the same weighted
+    allocation as everything else, so they land on whatever the real
+    engagement data currently favors instead of on a fixed assumption.
   - No single format may exceed MAX_SLOTS_PER_WEEK, so one good week of
     quiz feedback can't turn the whole channel into daily quizzes.
 
@@ -32,7 +50,7 @@ WEEKDAYS = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", 
 EXCLUDED_FROM_ROTATION = {"progress_recap"}
 
 FIXED_SLOTS = {"illustrated_pun": 1}
-FLOOR_FORMATS = {"story_installment": 1, "vocab_spotlight": 1}
+FLOOR_FORMATS = {"vocab_spotlight": 1, "quiz": 1}
 MAX_SLOTS_PER_WEEK = 3
 BEST_FORMAT_WEIGHT = 2
 DEFAULT_WEIGHT = 1
@@ -68,7 +86,7 @@ def build_slot_counts(all_format_keys, best_formats):
 
 def assign_days(slot_counts, current_schedule):
     """Map slot_counts onto WEEKDAYS, keeping each day's current format
-    where possible so subscribers' sense of "quiz day" / "story day"
+    where possible so subscribers' sense of "quiz day" / "idiom day"
     doesn't reshuffle more than the actual count changes require."""
     remaining = dict(slot_counts)
     new_schedule = {}

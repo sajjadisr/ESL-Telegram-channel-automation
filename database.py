@@ -1,4 +1,3 @@
-import re
 import sqlite3
 
 from ai import find_stray_script_chars
@@ -26,18 +25,41 @@ def get_conn():
     cols = [row[1] for row in conn.execute("PRAGMA table_info(posts)")]
     if "format" not in cols:
         conn.execute("ALTER TABLE posts ADD COLUMN format TEXT")
+    # Graded-reader progress tracking (reader.py). Added the same way
+    # `format` was added above — a real column, queried with SELECT MAX(),
+    # not recovered by regex-parsing AI-generated prose the way the old
+    # story_installment format did (see story-removal-and-fixes.diff).
+    if "story_id" not in cols:
+        conn.execute("ALTER TABLE posts ADD COLUMN story_id TEXT")
+    if "chunk_index" not in cols:
+        conn.execute("ALTER TABLE posts ADD COLUMN chunk_index INTEGER")
     return conn
 
 
-def save_post(date, format_name, category, level, title, content, keywords, status):
+def save_post(date, format_name, category, level, title, content, keywords, status,
+              story_id=None, chunk_index=None):
     conn = get_conn()
     conn.execute(
-        "INSERT INTO posts (date, format, category, level, title, content, keywords, status) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (date, format_name, category, level, title, content, keywords, status),
+        "INSERT INTO posts (date, format, category, level, title, content, keywords, status, "
+        "story_id, chunk_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (date, format_name, category, level, title, content, keywords, status,
+         story_id, chunk_index),
     )
     conn.commit()
     conn.close()
+
+
+def get_last_published_chunk(story_id):
+    """Ground truth for "what's the next chunk of this story" — a real
+    query against the durable, already-committed-every-run posts table,
+    not a cache that can silently go stale (see reader.py)."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT MAX(chunk_index) FROM posts WHERE story_id = ? AND status = 'published'",
+        (story_id,),
+    ).fetchone()
+    conn.close()
+    return row[0] if row and row[0] is not None else None
 
 
 def update_post_content(post_id, content):
@@ -82,6 +104,36 @@ def search_related_posts(keyword, category=None, limit=3, published_only=True):
     ).fetchall()
     conn.close()
     return rows
+
+
+def context_posts_for_generation(topic_keyword, category=None, recency_limit=5, topic_limit=3):
+    """Posts to show the model as "already used, don't repeat" context.
+
+    search_related_posts alone misses cross-topic repeats: it matches only
+    by topic-name substring (+ optional exact category match), so two
+    topics with unrelated names/categories that happen to share the most
+    natural example sentence (e.g. "Present simple tense" [Grammar] and
+    "Daily routine words" [Vocabulary] both naturally illustrated with "I
+    drink coffee every morning") never see each other as related — that's
+    what let the same coffee joke get reused two days in a row.
+
+    This unions two views: the most recent published posts overall
+    (catches cross-topic repeats, regardless of keyword/category) and
+    whatever search_related_posts finds for this specific topic (catches
+    same-topic repeats that may have scrolled out of "recent"). Returns
+    (title, content) tuples, most-relevant first, de-duplicated by title.
+    """
+    topic_specific = search_related_posts(topic_keyword, category=category, limit=topic_limit)
+    recent_pairs = [(row[0], row[4]) for row in get_recent_posts(limit=recency_limit)]
+
+    seen_titles = set()
+    combined = []
+    for title, content in list(topic_specific) + recent_pairs:
+        if title in seen_titles:
+            continue
+        seen_titles.add(title)
+        combined.append((title, content))
+    return combined
 
 
 def count_posts(published_only=False):
@@ -136,47 +188,3 @@ def remediate_stray_chars_in_db():
     conn.close()
     return fixed
 
-
-_PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
-_EPISODE_NUMBER_RE = re.compile(r"قسمت[\s\u200c]*([۰-۹0-9]+)")
-
-
-def _extract_episode_number(content):
-    """Pull the episode number the model actually wrote into a story post
-    (e.g. 'قسمت ۳') rather than assuming posts are gapless/sequential.
-    Returns None if no number is found."""
-    match = _EPISODE_NUMBER_RE.search(content or "")
-    if not match:
-        return None
-    try:
-        return int(match.group(1).translate(_PERSIAN_DIGITS))
-    except ValueError:
-        return None
-
-
-def sync_story_state_from_db():
-    """Repair story.json from published story_installment rows (Audit #2).
-
-    Uses the episode number actually embedded in the post text, not just a
-    row count — the two rows currently in posts.db are labeled 'قسمت ۲' and
-    'قسمت ۳' (episode 1 was lost in the original duplicate-run incident), so
-    counting rows would give last_installment=2 and cause the next post to
-    be generated as 'قسمت ۳' again, duplicating a number already published.
-    Falls back to row count only if no post has a parseable episode number.
-    """
-    conn = get_conn()
-    rows = conn.execute(
-        "SELECT content FROM posts WHERE format = 'story_installment' AND status = 'published' "
-        "ORDER BY id ASC"
-    ).fetchall()
-    conn.close()
-    if not rows:
-        return {"last_installment": 0, "recent_summary": ""}
-    last_content = rows[-1][0]
-    numbers = [_extract_episode_number(r[0]) for r in rows]
-    numbers = [n for n in numbers if n is not None]
-    last_installment = max(numbers) if numbers else len(rows)
-    return {
-        "last_installment": last_installment,
-        "recent_summary": last_content[:200],
-    }

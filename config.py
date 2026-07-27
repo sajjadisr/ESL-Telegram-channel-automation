@@ -95,7 +95,6 @@ MEMORY_PATH = "data/memory.json"
 STRATEGY_PATH = "data/strategy.json"
 FEEDBACK_PATH = "data/feedback.json"
 SCHEDULE_PATH = "data/format_schedule.json"
-STORY_PATH = "data/story.json"
 # Polls/quizzes that have been sent but not yet closed+harvested for
 # feedback.json (see poll_feedback.py / Audit #5).
 PENDING_POLLS_PATH = "data/pending_polls.json"
@@ -122,7 +121,15 @@ POSTS_PER_DAY = 3
 # 3-post/day channel; see FRESH_TOPICS_PER_DAY below for the matching half
 # of this trade-off. Most of the retention benefit comes from going from
 # zero reviews to one; additional stages have rapidly diminishing returns.
-REVIEW_INTERVALS_DAYS = [1, 7]
+REVIEW_INTERVALS_DAYS = [1]
+# Was [1, 7] before the graded-reader/news formats were added. Rebalanced
+# because one of the two "extra" daily slots is now reserved for
+# reader_installment (see main.py's extra-slot logic) — review capacity
+# dropped from 2 slots/day to 1, and the math above only avoids a growing
+# backlog if fresh_per_day * len(REVIEW_INTERVALS_DAYS) <= review_capacity,
+# i.e. 1 * 1 <= 1. The honest tradeoff: the day-7 reinforcement pass is
+# gone, so retention leans more on the standing MAINTENANCE_INTERVAL_DAYS
+# refresh below than it used to.
 
 # After a topic clears every stage above ("graduated"), it doesn't stop
 # being reviewed forever — it drops into a standing low-frequency
@@ -205,3 +212,48 @@ AUDIENCE_STRONG_THRESHOLD = 80  # quiz correct-rate % at/above this → strong c
 # docstring for why a multi-armed bandit or user-level split isn't a valid
 # design on a single broadcast channel with no per-user targeting.
 EXPERIMENTS_PATH = "data/experiments.json"
+
+# --- Graded-reader integration (reader.py) ----------------------------------
+# Pre-chunked story queue. Each story is fully segmented into a fixed,
+# known number of chunks BEFORE posting starts — the ending is decided on
+# day one, so a series can never "run out of what happens next" mid-run.
+# Progress is tracked in posts.db (story_id/chunk_index columns), not here —
+# see reader.py's module docstring for why the old story_installment format
+# broke and how this avoids repeating it.
+READER_LIBRARY_PATH = "data/reader_library.json"
+
+# When the number of not-yet-started stories in the library drops to this
+# level or below, main.py alerts the admin the same way
+# maybe_alert_low_topic_supply already does for topics.json. Unlike topics,
+# there's no auto-generation here — a good graded story needs real curation
+# (level, length, actual plot), not a one-line prompt — so this is
+# alert-only.
+LOW_STORY_WARNING_THRESHOLD = 2
+
+# --- Real news, re-leveled (news.py) ----------------------------------------
+# RSS, not an API: no credential to expire, get rate-limited, or need
+# billing attention — the only failure mode is "is the internet reachable",
+# which every other step already depends on too. Several long-running,
+# well-documented feeds rather than one, so one being briefly down doesn't
+# stall the day's post.
+NEWS_FEEDS = [
+    "http://feeds.bbci.co.uk/news/world/rss.xml",
+    "http://feeds.bbci.co.uk/news/technology/rss.xml",
+    "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+    "http://feeds.bbci.co.uk/news/also_in_the_news/rss.xml",
+]
+
+# Rolling dedup window (news.py keeps this many recently-used links in
+# memory.json — same file that already tracks avoid/covered topics — so a
+# feed re-serving the same headline tomorrow doesn't repeat it).
+NEWS_SEEN_MAX = 200
+
+# Mechanical keyword denylist, not an editorial judgment call: skips
+# headlines/summaries containing these terms so heavy news doesn't land
+# next to a café dialogue about ordering coffee. Plain-text, lowercase,
+# edit freely.
+NEWS_DENYLIST_KEYWORDS = [
+    "killed", "dead", "death", "dies", "war", "attack", "shooting", "bomb",
+    "terror", "murder", "rape", "abuse", "suicide", "massacre", "genocide",
+    "assault", "explosion", "conflict", "violence", "shot", "stabbed",
+]
