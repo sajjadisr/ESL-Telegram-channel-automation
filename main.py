@@ -88,6 +88,25 @@ def maybe_alert_low_story_supply(memory):
         )
 
 
+def maybe_alert_news_health(memory):
+    """Mirrors maybe_alert_low_story_supply, but for news.py's feed health.
+    fetch_news_item() degrading to None on any single run is expected and
+    silent by design (a feed hiccup shouldn't page anyone) — this only
+    fires once consecutive empty attempts cross config.NEWS_FAILURE_ALERT_
+    THRESHOLD, which is what a *permanent* break (BBC retiring/renaming a
+    feed URL, the domain getting blocked, etc.) looks like from here.
+    news.health_alert_needed() marks the streak as alerted as a side
+    effect, so this won't re-fire every run — only once per bad streak."""
+    if news.health_alert_needed(memory):
+        streak = memory.get(news.NEWS_FAILURE_STREAK_KEY, 0)
+        send_admin_message(
+            f"⚠️ فرمت «خبر ساده‌شده» {streak} بار پشت‌سرهم هیچ خبری برنگردونده — "
+            f"یعنی یا فیدهای BBC توی config.NEWS_FEEDS دیگه کار نمی‌کنن (لینک عوض شده/حذف شده)، "
+            f"یا یه چیز دیگه شبکه‌ای بلوکش کرده. تا وقتی درست نشه، این فرمت بی‌سروصدا رد می‌شه و "
+            f"جای اون از استخر موضوعات عادی استفاده می‌شه — یه نگاه بنداز."
+        )
+
+
 def resolve_today_format():
     post_count = count_posts(published_only=True)
     if post_count > 0 and post_count % RECAP_EVERY_N_POSTS == 0:
@@ -459,6 +478,7 @@ def main():
 
     maybe_alert_low_topic_supply(memory)
     maybe_alert_low_story_supply(memory)
+    maybe_alert_news_health(memory)
 
     if reader_data is not None:
         story, chunk_index, chunk_text, is_final = reader_data

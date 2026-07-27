@@ -237,10 +237,10 @@ LOW_STORY_WARNING_THRESHOLD = 2
 # well-documented feeds rather than one, so one being briefly down doesn't
 # stall the day's post.
 NEWS_FEEDS = [
-    "http://feeds.bbci.co.uk/news/world/rss.xml",
-    "http://feeds.bbci.co.uk/news/technology/rss.xml",
-    "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
-    "http://feeds.bbci.co.uk/news/also_in_the_news/rss.xml",
+    "https://feeds.bbci.co.uk/news/world/rss.xml",
+    "https://feeds.bbci.co.uk/news/technology/rss.xml",
+    "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+    "https://feeds.bbci.co.uk/news/also_in_the_news/rss.xml",
 ]
 
 # Rolling dedup window (news.py keeps this many recently-used links in
@@ -257,3 +257,29 @@ NEWS_DENYLIST_KEYWORDS = [
     "terror", "murder", "rape", "abuse", "suicide", "massacre", "genocide",
     "assault", "explosion", "conflict", "violence", "shot", "stabbed",
 ]
+
+# HTTP timeout (seconds) for each individual feed request. feedparser.parse()
+# has no timeout parameter of its own, so news.py fetches the raw bytes with
+# `requests` first — same explicit-timeout discipline ai.py/channels.py/
+# telegram_bot.py already use elsewhere in this codebase — then hands the
+# bytes to feedparser. Without this, a feed that connects but then stalls
+# (rather than actively refusing) could block the run indefinitely, since
+# Python's socket default timeout is "wait forever."
+NEWS_REQUEST_TIMEOUT = 10
+
+# Sent as the User-Agent on every feed request instead of feedparser's
+# default "feedparser/6.x +https://github.com/kurtmckee/feedparser" string,
+# which some CDN/WAF layers soft-block or throttle as an obvious bot,
+# especially from datacenter/CI IP ranges. Edit freely if you rename the
+# channel or its public link.
+NEWS_USER_AGENT = "Mozilla/5.0 (compatible; inEnglishBot/1.0; +https://t.me/inEnglish)"
+
+# How many consecutive fetch_news_item() calls must come back empty before
+# main.py alerts the admin once (see news.health_alert_needed). Deliberately
+# measured in *attempts*, not calendar days — the news slot doesn't run
+# every day, so a day-based threshold would fire at inconsistent real-world
+# intervals. This is what turns "BBC quietly retired/renamed a feed URL"
+# from silent-forever degradation (fetch_news_item keeps returning None,
+# main.py keeps falling back to the normal topic pool, nobody notices) into
+# a one-time heads-up instead.
+NEWS_FAILURE_ALERT_THRESHOLD = 5
