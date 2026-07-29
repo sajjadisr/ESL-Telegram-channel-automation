@@ -1,7 +1,19 @@
-"""Turns strategy.json's `best_formats` (real engagement signal, harvested
-from quiz correct-rates and poll votes by poll_feedback.py) into an actual
-weekly rotation — the missing link that made `best_formats` dead data before
-this file existed: weekly_strategy.py computed it, nothing ever read it.
+"""Turns real engagement data (analytics.recent_score_summary — harvested
+from quiz correct-rates, poll votes, and, once engagement_harvest.py is
+configured, views/forwards for every other format too) into an actual
+weekly rotation — the missing link that made this data dead before this
+file existed: it used to be computed, nothing ever read it.
+
+Weighting is now a direct, deterministic function of analytics.py's own
+numbers (format_weight below) — no LLM call in between. It used to route
+through weekly_strategy.py asking a model to re-read recent post titles
+and feedback text and guess a binary best_formats list; that step added
+nothing a formula over the number the system already computed couldn't do
+better, and it silently discarded the actual reward_score value in favor
+of a re-derived qualitative guess. See weekly_strategy.py's module
+docstring for the other half of that split: the LLM call that's left
+keeps doing the one job it's actually suited for (focus_more_on/
+focus_less_on topic-level guidance), and no longer touches formats at all.
 
 Design constraints baked in on purpose:
   - illustrated_pun is capped at exactly 1/week regardless of engagement —
@@ -16,14 +28,13 @@ Design constraints baked in on purpose:
       * quiz is the *only* format that produces the correct-rate feedback
         that analytics.compute_reward_score's REWARD_WEIGHT_LEARNING half
         depends on (see config.py). Without a floor, a data-driven
-        reallocation can starve its own data supply: if best_formats ever
-        happens to exclude "quiz" (e.g. because strategy.json was built
-        from too little feedback to include it yet — see
-        MIN_FEEDBACK_FOR_SCHEDULE_UPDATE in config.py), the D'Hondt method
-        below would zero out its slots entirely, which means no more quiz
-        feedback ever arrives to correct that in a future week either.
-    Both can still win *extra* slots if engagement flags them as
-    best_formats too; neither can drop to 0.
+        reallocation can starve its own data supply: if quiz's score ever
+        happens to be low relative to other formats, weighting alone
+        (no floor) could push its slot count toward zero, which means no
+        more quiz feedback ever arrives to correct that in a future week
+        either.
+    Both can still win *extra* slots if their score favors them too;
+    neither can drop to 0.
   - story_installment used to have the same kind of floor (serial
     continuity was its structural role), but the format itself has been
     retired: it was locked into a slot every week by this floor regardless
@@ -40,7 +51,10 @@ Hamilton apportionment — turns out to produce almost no visible weighting
 at this scale (a well-known property of that method with few categories).
 We use the D'Hondt / Jefferson method instead (the one most seat-allocation
 systems use), which reliably shows proportional weighting even with a
-handful of categories.
+handful of categories — and, unlike the classic seat-allocation use case,
+nothing about it requires the input weights to be small integers; it works
+identically over the continuous, real-valued weights format_weight below
+produces.
 """
 
 WEEKDAYS = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
@@ -52,17 +66,47 @@ EXCLUDED_FROM_ROTATION = {"progress_recap"}
 FIXED_SLOTS = {"illustrated_pun": 1}
 FLOOR_FORMATS = {"vocab_spotlight": 1, "quiz": 1}
 MAX_SLOTS_PER_WEEK = 3
-BEST_FORMAT_WEIGHT = 2
-DEFAULT_WEIGHT = 1
+
+# --- Continuous, score-derived weighting ------------------------------------
+DEFAULT_WEIGHT = 1.0  # a format with no score yet (never scored, or not
+# scored recently enough to survive analytics.ROLLING_WINDOW) is neutral —
+# "no data" must never be penalized the same as "data says this is bad".
+NEUTRAL_SCORE = 0.5  # a reward_score of 0.5 is what compute_reward_score/
+# score_entry already produce when there's no rolling baseline yet, or when
+# engagement exactly matches this format's own recent normal — i.e. the
+# actual, already-defined "neither good nor bad" point on the [0, 1] scale
+# those functions use, not a separate assumption invented here.
+REWARD_SCALE = 2.0  # weight = DEFAULT_WEIGHT + REWARD_SCALE * (score - NEUTRAL_SCORE):
+# a perfect score (1.0) yields weight 2.0 (double the neutral weight, the
+# same ratio the old binary best_formats bonus used), a score of 0.0 yields
+# a small positive floor rather than 0 or negative (see MIN_WEIGHT) — D'Hondt
+# needs strictly positive weights, and a single bad week shouldn't be able
+# to mathematically zero a format out on its own (FLOOR_FORMATS/FIXED_SLOTS
+# are the deliberate, named way a format gets guaranteed slots regardless of
+# score; an accidental zero-weight from the formula is not that).
+MIN_WEIGHT = 0.2
 
 
-def build_slot_counts(all_format_keys, best_formats):
-    """Return {format_name: slots_per_week} summing to len(WEEKDAYS)."""
+def format_weight(format_name, score_summary):
+    """This format's D'Hondt weight for this week, derived directly from
+    analytics.recent_score_summary()'s output — no LLM guess involved.
+    Formats analytics has no score for yet (score_summary.get returns
+    None) get DEFAULT_WEIGHT, same as before any data exists for them."""
+    score = score_summary.get(format_name)
+    if score is None:
+        return DEFAULT_WEIGHT
+    return max(MIN_WEIGHT, DEFAULT_WEIGHT + REWARD_SCALE * (score - NEUTRAL_SCORE))
+
+
+def build_slot_counts(all_format_keys, score_summary):
+    """Return {format_name: slots_per_week} summing to len(WEEKDAYS).
+    score_summary is analytics.recent_score_summary()'s output —
+    {format_name: avg_reward_score_in_[0,1]} for whatever's been scored."""
     eligible = [f for f in all_format_keys if f not in EXCLUDED_FROM_ROTATION]
     weighted_pool = [f for f in eligible if f not in FIXED_SLOTS]
 
     counts = {f: FLOOR_FORMATS.get(f, 0) for f in weighted_pool}
-    weights = {f: (BEST_FORMAT_WEIGHT if f in best_formats else DEFAULT_WEIGHT) for f in weighted_pool}
+    weights = {f: format_weight(f, score_summary) for f in weighted_pool}
 
     slots_to_allocate = len(WEEKDAYS) - sum(FIXED_SLOTS.values()) - sum(counts.values())
     if slots_to_allocate < 0:
@@ -72,7 +116,7 @@ def build_slot_counts(all_format_keys, best_formats):
     # currently has the highest weight / (seats_so_far + 1) quotient. Ties
     # (common at this scale) break on weighted_pool's stable order, i.e.
     # FORMATS dict order — deterministic, not random, so a schedule rebuild
-    # is reproducible from the same strategy.json.
+    # is reproducible from the same analytics.json.
     for _ in range(slots_to_allocate):
         candidates = [f for f in weighted_pool if counts[f] < MAX_SLOTS_PER_WEEK]
         if not candidates:
@@ -110,8 +154,8 @@ def assign_days(slot_counts, current_schedule):
     return new_schedule
 
 
-def build_engagement_schedule(all_format_keys, best_formats, current_schedule):
-    slot_counts = build_slot_counts(all_format_keys, best_formats)
+def build_engagement_schedule(all_format_keys, score_summary, current_schedule):
+    slot_counts = build_slot_counts(all_format_keys, score_summary)
     return assign_days(slot_counts, current_schedule)
 
 

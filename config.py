@@ -49,6 +49,54 @@ CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
 # open the Actions tab and read the run's log to copy them from there.
 TELEGRAM_ADMIN_CHAT_ID = os.environ.get("TELEGRAM_ADMIN_CHAT_ID", "")
 
+# --- MTProto userbot session (engagement_harvest.py) ------------------------
+# Optional. Closes the views/forwards measurement gap analytics.py's own
+# docstring names but can't solve on its own: the plain Bot API has no way to
+# read views/forwards on a channel post, but a userbot (MTProto, via Telethon)
+# reading — not incrementing — message metadata does. TELEGRAM_API_ID/HASH
+# are a personal app credential from https://my.telegram.org/apps (free, tied
+# to your own Telegram account, NOT the same thing as TELEGRAM_BOT_TOKEN).
+# TELETHON_SESSION_STRING is produced by a ONE-TIME interactive login (phone
+# + code, maybe 2FA) that has to happen on a device tied to your account —
+# see scripts/generate_telethon_session.py. Leave any of these unset and
+# engagement_harvest.py silently no-ops (prints a note, changes nothing) —
+# every other part of the pipeline is unaffected.
+TELEGRAM_API_ID = os.environ.get("TELEGRAM_API_ID", "").strip()
+TELEGRAM_API_HASH = os.environ.get("TELEGRAM_API_HASH", "").strip()
+TELETHON_SESSION_STRING = os.environ.get("TELETHON_SESSION_STRING", "").strip()
+
+# How many days back engagement_harvest.py looks for posts still missing
+# views/forwards. Telegram view counts keep climbing for a while after
+# posting, so harvesting isn't "once and done" the day after — re-checking
+# recent posts across a window catches the count settling, not just its
+# first hour. Old enough entries outside the window just keep whatever
+# reading they last got; that's a reasonable place to stop chasing a moving
+# target for a channel this size.
+ENGAGEMENT_HARVEST_WINDOW_DAYS = 14
+
+# A forward is a subscriber vouching for the post to someone else — the
+# actual growth mechanic on Telegram (telegram-esl-virality-blueprint.md,
+# Part 0: no algorithmic feed, so forwards/cross-promotion/search are
+# essentially the whole game) — whereas a view just means the post appeared
+# in someone's chat list. Weighted higher so the composite engagement value
+# analytics.py scores formats on reflects that, not raw reach alone.
+FORWARD_WEIGHT_MULTIPLIER = 3
+
+# --- Semantic dedup via embeddings (embeddings.py) --------------------------
+# Cosine-similarity threshold above which a freshly-drafted post is treated
+# as a semantic duplicate of something already published (see
+# embeddings.check_semantic_duplicate, wired into main.generate_reviewed_
+# text's retry loop). This closes the gap database.search_related_posts's
+# LIKE-based matching structurally can't see: two posts with unrelated
+# titles/categories that happen to reuse the same example sentence or
+# scenario. Threshold picked conservatively (only flag near-duplicates, not
+# merely related content on the same grammar point) — tune down if repeats
+# still slip through, tune up if it starts blocking legitimately different
+# posts that just share vocabulary.
+DEDUP_SIMILARITY_THRESHOLD = 0.90
+
+EMBEDDINGS_JSONL_PATH = "data/post_embeddings.jsonl"
+
 # --- Extra channels (optional) ---------------------------------------------
 # Each platform is entirely optional: if its token isn't set, that platform
 # is silently skipped in channels.py — nothing crashes, Telegram still posts
@@ -184,13 +232,15 @@ AUTO_GENERATE_TOPIC_COUNT = 20
 # Rolling window for weekly strategy feedback (Audit Problem B).
 FEEDBACK_WINDOW_WEEKS = 8
 
-# weekly_strategy.py only lets `best_formats` reshape data/format_schedule.json
-# once there are at least this many real feedback entries (auto poll/quiz
-# harvests or manual feedback_add.py notes) inside FEEDBACK_WINDOW_WEEKS.
-# Below this, best_formats is still computed and saved to strategy.json (it
-# still steers what the model writes about via focus_more_on/focus_less_on),
-# but there isn't enough real engagement signal yet to justify changing which
-# days get which format — early on the model would otherwise be guessing.
+# weekly_strategy.update_schedule_from_engagement only lets real engagement
+# data (analytics.recent_score_summary) reshape data/format_schedule.json
+# once there are at least this many scored posts (any format — poll/quiz
+# always produce one; other formats do too, once engagement_harvest.py is
+# configured) within analytics.recent_score_summary's own lookback window.
+# Below this, focus_more_on/focus_less_on (still an LLM judgment call) keep
+# steering what the model writes about, but there isn't enough real
+# engagement signal yet to justify reweighting which days get which
+# format — early on the data would otherwise be too thin to trust.
 MIN_FEEDBACK_FOR_SCHEDULE_UPDATE = 4
 
 # --- Weekly campaigns (campaigns.py) ----------------------------------------

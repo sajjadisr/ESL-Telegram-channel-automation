@@ -5,7 +5,7 @@ from config import (
 from database import get_recent_posts
 from memory import load_json, save_json
 from ai import generate_json
-from prompts import FORMATS, build_strategy_prompt, filter_recent_feedback
+from prompts import FORMATS, build_strategy_prompt
 from schedule_builder import build_engagement_schedule, diff_schedule
 from telegram_bot import send_admin_message
 import analytics
@@ -86,16 +86,19 @@ def send_weekly_intelligence_report():
 
 
 def validate_strategy(data):
-    """Reject model output that doesn't match expected schema (Audit #19)."""
+    """Reject model output that doesn't match expected schema (Audit #19).
+
+    best_formats is no longer part of this schema — see schedule_builder.py's
+    module docstring for why: format selection is now a deterministic
+    function of analytics.recent_score_summary(), computed in
+    update_schedule_from_engagement below with zero LLM calls. This
+    function's only remaining job is focus_more_on/focus_less_on, the
+    genuinely qualitative topic-level judgment a formula can't produce."""
     if not isinstance(data, dict):
         return False, "root is not an object"
-    for key in ("focus_more_on", "focus_less_on", "best_formats"):
+    for key in ("focus_more_on", "focus_less_on"):
         if key not in data or not isinstance(data[key], list):
             return False, f"missing or invalid list: {key}"
-    valid_keys = set(FORMATS.keys())
-    bad_formats = [f for f in data["best_formats"] if f not in valid_keys]
-    if bad_formats:
-        return False, f"unknown format keys: {bad_formats}"
     return True, ""
 
 
@@ -124,29 +127,36 @@ def main():
     save_json(STRATEGY_PATH, new_strategy)
     print("استراتژی به‌روزرسانی شد:", new_strategy)
 
-    update_schedule_from_engagement(new_strategy, feedback_list)
+    update_schedule_from_engagement()
 
 
-def update_schedule_from_engagement(strategy, feedback_list):
-    """Reshape data/format_schedule.json around strategy['best_formats'] —
-    otherwise best_formats is computed every week and never actually used
-    anywhere (it used to just sit in strategy.json unread)."""
-    recent_feedback = filter_recent_feedback(feedback_list)
-    if len(recent_feedback) < MIN_FEEDBACK_FOR_SCHEDULE_UPDATE:
+def update_schedule_from_engagement():
+    """Reshape data/format_schedule.json around analytics.recent_score_
+    summary() — real, measured per-format performance (poll votes/quiz
+    correct-rate always; views/forwards too, for every format, once
+    engagement_harvest.py is configured) — computed with zero LLM calls in
+    between. See schedule_builder.py's module docstring for the full
+    reasoning behind retiring the old best_formats LLM guess.
+
+    No longer takes strategy/feedback_list — format weighting doesn't come
+    from either anymore, so this function's only remaining dependency is
+    analytics.json itself."""
+    score_summary = analytics.recent_score_summary()
+    scored_count = analytics.recent_scored_count()
+    if scored_count < MIN_FEEDBACK_FOR_SCHEDULE_UPDATE:
         print(
-            f"فقط {len(recent_feedback)} بازخورد واقعی توی این بازه هست "
+            f"فقط {scored_count} پست امتیازدهی‌شده‌ی واقعی توی این بازه هست "
             f"(حداقل لازم: {MIN_FEEDBACK_FOR_SCHEDULE_UPDATE}) — برنامه‌ی هفتگی "
-            f"فعلاً بر اساس best_formats تغییر نمی‌کنه، چون هنوز داده‌ی کافی نیست."
+            f"فعلاً بر اساس امتیاز واقعی تغییر نمی‌کنه، چون هنوز داده‌ی کافی نیست."
         )
         return
 
     current_schedule = load_json(SCHEDULE_PATH, {})
-    best_formats = strategy.get("best_formats", [])
-    new_schedule = build_engagement_schedule(list(FORMATS.keys()), best_formats, current_schedule)
+    new_schedule = build_engagement_schedule(list(FORMATS.keys()), score_summary, current_schedule)
 
     changes = diff_schedule(current_schedule, new_schedule)
     if not changes:
-        print("برنامه‌ی هفتگی همون چیزیه که بر اساس best_formats انتظار می‌رفت — تغییری لازم نبود.")
+        print("برنامه‌ی هفتگی همون چیزیه که بر اساس امتیازهای واقعی انتظار می‌رفت — تغییری لازم نبود.")
         return
 
     save_json(SCHEDULE_PATH, new_schedule)
@@ -160,10 +170,13 @@ def update_schedule_from_engagement(strategy, feedback_list):
         f"{FORMATS.get(new, {}).get('label', new)}"
         for day, old, new in changes
     )
+    score_lines = "، ".join(
+        f"{FORMATS.get(f, {}).get('label', f)}: {s}" for f, s in score_summary.items()
+    ) or "هیچکدام"
     send_admin_message(
-        f"📅 برنامه‌ی هفتگی بر اساس بازخورد واقعی ({len(recent_feedback)} مورد اخیر) به‌روز شد:\n"
+        f"📅 برنامه‌ی هفتگی بر اساس امتیاز واقعی تعامل ({scored_count} پست اخیر امتیازدهی‌شده) به‌روز شد:\n"
         f"{change_lines}\n\n"
-        f"فرمت‌های برتر این هفته: {', '.join(FORMATS.get(f, {}).get('label', f) for f in best_formats) or 'هیچکدام'}"
+        f"میانگین امتیاز اخیر بر اساس فرمت: {score_lines}"
     )
     print("برنامه‌ی هفتگی به‌روزرسانی شد:", new_schedule)
 

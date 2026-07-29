@@ -126,6 +126,7 @@ def harvest_pending_polls():
             experiment_id=entry.get("experiment_id"),
             variant_label=entry.get("variant_label"),
             extra_channel_delivery=entry.get("extra_channel_delivery"),
+            message_id=entry.get("message_id"),
         )
 
         # Weakness 1 (audience profile) — only quizzes carry a graded,

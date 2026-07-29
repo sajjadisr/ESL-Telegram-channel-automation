@@ -101,6 +101,26 @@ REVIEW_MODEL = "gemini-3.5-flash"
 # GA tier — same reasoning as DRAFT_MODEL being flash-lite for text: a
 # small flat-icon illustration doesn't need the Pro tier's text-rendering/
 # reasoning strength, and this runs far less often than DRAFT_MODEL does.
+# Search-grounded verification calls (research.py's idiom/proverb lookup,
+# and any future "this claim needs to be checked against reality, not
+# generated from memory" use). Same REVIEW_MODEL tier, not DRAFT_MODEL: this
+# runs far less often than a draft call (once per never-before-seen idiom,
+# not once per post), and it's spent on exactly the kind of claim where a
+# same-model-family review pass checking itself isn't independent
+# verification (see REVIEW_MODEL's own comment above) — a live search result
+# is a genuinely different source, not just a bigger model guessing harder.
+GROUNDING_MODEL = REVIEW_MODEL
+
+# gemini-embedding-001: GA, tops the MTEB Multilingual leaderboard, and lists
+# Persian among its supported languages — used by embeddings.py for semantic
+# post-deduplication (cosine similarity instead of database.py's keyword
+# LIKE match). 768 dims (MRL-truncated from the model's native larger size)
+# is plenty of resolution for near-duplicate detection at this channel's
+# scale (a few posts/day) while keeping data/post_embeddings.jsonl small
+# enough to commit to git like every other data/ file.
+EMBEDDING_MODEL = "gemini-embedding-001"
+EMBEDDING_DIMENSIONALITY = 768
+
 IMAGE_MODEL = "gemini-3.1-flash-lite-image"
 # Tried only if IMAGE_MODEL comes back empty (hard failure after retries,
 # OR a 200 with no image part — e.g. a safety block that's specific to
@@ -109,6 +129,30 @@ IMAGE_MODEL = "gemini-3.1-flash-lite-image"
 # more attempt here is worth it before handle_image_format gives up and
 # falls back to the fully-manual admin hand-off.
 FALLBACK_IMAGE_MODEL = "gemini-2.5-flash-image"
+
+# Voice notes (main.py's voice_note format) — Gemini's native Speech
+# Generation, an LLM that knows not only what to say but how to say it,
+# not a traditional phoneme-stitching TTS engine. Same two-tier fallback
+# shape as the image models above: try the newest/most capable tier
+# first, fall back to the previous generation if it comes back empty.
+# Persian ("fa") is an explicitly supported input language (see
+# ai.google.dev/gemini-api/docs/speech-generation's language table) —
+# confirmed against the current docs, not assumed, since this channel's
+# posts mix majority-English text with short Persian glosses and the
+# model has to read both correctly in one pass.
+TTS_MODEL = "gemini-3.1-flash-tts-preview"
+FALLBACK_TTS_MODEL = "gemini-2.5-flash-preview-tts"
+# One of 30 prebuilt voices (none are language-tagged, so this is a
+# judgment call, not a confirmed "best for Persian" pick) — Umbriel is
+# documented as "easy-going", the closest single-word match to this
+# channel's warm, unhurried teacher persona (prompts.py's PERSONA_NOTE).
+# Worth an actual listen in AI Studio's Voice Library
+# (aistudio.google.com/generate-speech) before treating this as final.
+TTS_VOICE_NAME = "Umbriel"
+# TTS output is raw PCM (24kHz, mono, 16-bit signed little-endian) per
+# Google's docs — never WAV/MP3 — see generate_speech's docstring for why
+# that's the right thing for voice_note.py to receive, not a bug to fix.
+TTS_SAMPLE_RATE_HZ = 24000
 
 # 30s per HTTP call — long enough for a normal generation, short enough that
 # a genuine hang doesn't block the job until CI's own timeout kills it.
@@ -294,6 +338,123 @@ def generate_content_smart(prompt):
         ) from exc
 
 
+def _call_model_grounded(model_name, prompt):
+    """Same retry/fallback contract as _call_model (transient errors retried
+    with backoff, auth errors fall through to the next configured client),
+    but with the Google Search grounding tool enabled — the model issues
+    real search queries and grounds its answer in what comes back, instead
+    of answering from memory alone. No Groq fallback here (see
+    generate_grounded_json's docstring for why) — a grounded call that fails
+    on every Gemini client just fails, it doesn't quietly degrade to an
+    ungrounded guess from a different provider."""
+    last_exc = None
+    for client_label, client in _clients:
+        for attempt in range(1, MAX_API_ATTEMPTS + 1):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        tools=[types.Tool(google_search=types.GoogleSearch())],
+                        http_options=_HTTP_OPTIONS,
+                    ),
+                )
+                return (response.text or "").strip()
+            except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+                last_exc = exc
+                if _is_auth_error(exc):
+                    print(f"Gemini grounded call to {model_name} failed with an auth error on "
+                          f"the {client_label} (not retrying this key): {exc}")
+                    break
+                if attempt < MAX_API_ATTEMPTS:
+                    print(f"Gemini grounded call to {model_name} failed (attempt "
+                          f"{attempt}/{MAX_API_ATTEMPTS}) on the {client_label}: {exc}. Retrying...")
+                    time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
+                else:
+                    print(f"Gemini grounded call to {model_name} failed after "
+                          f"{MAX_API_ATTEMPTS} attempts on the {client_label}: {exc}")
+    if _is_auth_error(last_exc):
+        raise GeminiAuthError(
+            f"Gemini grounded call to {model_name} failed with an authentication error on "
+            f"{'every configured key' if len(_clients) > 1 else 'the configured key'}: {last_exc}"
+        ) from last_exc
+    raise last_exc
+
+
+def generate_grounded_json(prompt, fallback=None):
+    """Like generate_json, but the call is Search-grounded (see
+    _call_model_grounded) — for claims that need checking against the real
+    world, not just fluent generation (e.g. research.py's "is this actually
+    a well-known Persian proverb" lookup). Returns `fallback` on any
+    failure (API error after retries, or an unparseable response) — callers
+    must treat that exactly like "couldn't verify this one right now, try
+    again later / skip it", never publish something on the strength of a
+    fallback value. Deliberately no Groq fallback and no `strict=True`
+    option like generate_json: a caller that needs unverified content badly
+    enough to accept an ungrounded guess should call generate_json
+    directly, not silently get one back from a function named for the
+    thing it just failed to do."""
+    try:
+        raw = _call_model_grounded(GROUNDING_MODEL, prompt)
+    except Exception as exc:  # noqa: BLE001 — any failure here just means "couldn't verify"
+        print("generate_grounded_json: model call failed, using fallback:", exc)
+        return fallback
+
+    cleaned = raw.replace("```json", "").replace("```", "").strip()
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        print("generate_grounded_json: response was not valid JSON, using fallback. Raw response:",
+              raw[:300])
+        return fallback
+
+
+def embed_text(text):
+    """Returns a unit-ish list[float] embedding vector for `text` (see
+    EMBEDDING_MODEL/EMBEDDING_DIMENSIONALITY above), or None if every
+    configured client failed after retries.
+
+    Callers (embeddings.py's semantic-dedup check) MUST treat None as "skip
+    the semantic check this time" — never as a reason to block or crash a
+    run. A transient embedding-API hiccup degrading dedup back to the
+    existing keyword-based check for one post is an acceptable trade;
+    blocking publishing on it would not be."""
+    task_type = "SEMANTIC_SIMILARITY"
+    for client_label, client in _clients:
+        for attempt in range(1, MAX_API_ATTEMPTS + 1):
+            try:
+                response = client.models.embed_content(
+                    model=EMBEDDING_MODEL,
+                    contents=text,
+                    config=types.EmbedContentConfig(
+                        output_dimensionality=EMBEDDING_DIMENSIONALITY,
+                        task_type=task_type,
+                    ),
+                )
+                embeddings = response.embeddings or []
+                if not embeddings or not embeddings[0].values:
+                    print("embed_text: response had no embedding values.")
+                    return None
+                return list(embeddings[0].values)
+            except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+                if _is_auth_error(exc):
+                    print(f"embed_text: auth error on the {client_label} (not retrying this "
+                          f"key): {exc}")
+                    break
+                if attempt < MAX_API_ATTEMPTS:
+                    print(f"embed_text: call failed (attempt {attempt}/{MAX_API_ATTEMPTS}) on "
+                          f"the {client_label}: {exc}. Retrying...")
+                    time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
+                else:
+                    print(f"embed_text: call failed after {MAX_API_ATTEMPTS} attempts on the "
+                          f"{client_label}: {exc}")
+            except Exception as exc:  # noqa: BLE001 — never let a dedup check crash a run
+                print(f"embed_text: unexpected error on the {client_label}: {exc}")
+                break
+    print("embed_text: every configured client failed; skipping (dedup degrades gracefully).")
+    return None
+
+
 def _generate_image_with_model(model_name, prompt):
     """One model's worth of retried attempts (see _call_model — same
     retry-with-backoff convention). Returns image bytes, or None if the
@@ -389,6 +550,108 @@ def generate_image(prompt):
     # if this also comes back empty (or isn't configured).
     print("generate_image: both Gemini image models failed; trying Cloudflare Workers AI fallback.")
     return _call_cloudflare_image(prompt)
+
+
+def _generate_speech_with_model(model_name, text):
+    """One model's worth of retried attempts (same retry-with-backoff
+    convention as _call_model / _generate_image_with_model). Returns raw
+    PCM bytes (see TTS_SAMPLE_RATE_HZ above), or None if the model
+    responded but produced no audio part (a soft failure). Raises after
+    MAX_API_ATTEMPTS on a hard API failure; generate_speech below decides
+    whether to try the fallback model.
+
+    Google's own docs flag that this preview model occasionally returns
+    text tokens instead of audio tokens on a small percentage of
+    requests, surfacing as a 500 ServerError — already covered by the
+    same retry-with-backoff loop every other call in this file uses, no
+    special-casing needed here."""
+    last_exc = None
+    for client_label, client in _clients:
+        for attempt in range(1, MAX_API_ATTEMPTS + 1):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=text,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["AUDIO"],
+                        speech_config=types.SpeechConfig(
+                            voice_config=types.VoiceConfig(
+                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                    voice_name=TTS_VOICE_NAME,
+                                )
+                            )
+                        ),
+                        http_options=_HTTP_OPTIONS,
+                    ),
+                )
+                for part in response.parts or []:
+                    if getattr(part, "inline_data", None) is not None:
+                        return part.inline_data.data
+                print(f"generate_speech ({model_name}): responded with no audio part.")
+                return None
+            except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+                last_exc = exc
+                if _is_auth_error(exc):
+                    print(f"Gemini speech call to {model_name} failed with an auth error on "
+                          f"the {client_label} (not retrying this key): {exc}")
+                    break
+                if attempt < MAX_API_ATTEMPTS:
+                    print(f"Gemini speech call to {model_name} failed (attempt "
+                          f"{attempt}/{MAX_API_ATTEMPTS}) on the {client_label}: {exc}. Retrying...")
+                    time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
+                else:
+                    print(f"Gemini speech call to {model_name} failed after "
+                          f"{MAX_API_ATTEMPTS} attempts on the {client_label}: {exc}")
+    if _is_auth_error(last_exc):
+        raise GeminiAuthError(
+            f"Gemini speech call to {model_name} failed with an authentication error on "
+            f"{'every configured key' if len(_clients) > 1 else 'the configured key'}: {last_exc}"
+        ) from last_exc
+    raise last_exc
+
+
+def generate_speech(text):
+    """Generate spoken audio for `text` — used by voice_note.py to turn a
+    post's script into an actual voice note. Returns raw PCM bytes (24kHz,
+    mono, 16-bit signed little-endian — see TTS_SAMPLE_RATE_HZ) on
+    success, or None if both model tiers failed.
+
+    Deliberately returns raw PCM, not a finished audio file: Telegram's
+    sendVoice requires OGG/Opus specifically, and PCM -> OGG/Opus is one
+    ffmpeg call (voice_note.pcm_to_ogg_opus) — wrapping it in a WAV header
+    here first would just be one extra, pointless conversion step for
+    every caller to undo.
+
+    Same two-tier fallback pattern as generate_image: try TTS_MODEL, then
+    FALLBACK_TTS_MODEL if the first produced nothing (hard failure after
+    retries, OR a normal response with no audio part) — no third,
+    non-Gemini fallback here the way generate_image has Cloudflare, since
+    there's no equivalent free-tier TTS provider already wired into this
+    project. If both fail, voice_note.py falls back to a plain text post,
+    the same "auto path breaks -> don't lose the day's post" pattern
+    handle_image_format already uses for images.
+
+    Deliberate exception: GeminiAuthError still propagates uncaught, same
+    reasoning as generate_image — a broken credential means every Gemini
+    call this run is about to fail the same way, and that needs to reach
+    the admin alert, not disappear into a silent per-format fallback."""
+    try:
+        pcm = _generate_speech_with_model(TTS_MODEL, text)
+    except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+        print(f"generate_speech: {TTS_MODEL} unavailable after retries ({exc}).")
+        pcm = None
+
+    if pcm is not None:
+        return pcm
+
+    print(f"generate_speech: falling back to {FALLBACK_TTS_MODEL}.")
+    try:
+        pcm = _generate_speech_with_model(FALLBACK_TTS_MODEL, text)
+    except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+        print(f"generate_speech: fallback model {FALLBACK_TTS_MODEL} also failed after retries: {exc}")
+        pcm = None
+
+    return pcm
 
 
 # Characters this channel should ever contain: Latin (English), Persian/Arabic

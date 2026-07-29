@@ -19,6 +19,7 @@ rules, let alone earn its complexity.
 
 from config import AUDIENCE_PROFILE_PATH, AUDIENCE_WEAK_THRESHOLD, AUDIENCE_STRONG_THRESHOLD
 from memory import load_json, save_json
+import analytics
 
 MAX_TRACKED_CATEGORIES = 8
 MAX_ACCURACY_HISTORY = 20
@@ -82,12 +83,17 @@ def get_profile():
     return load_json(AUDIENCE_PROFILE_PATH, _default_profile())
 
 
-def profile_context_block(strategy=None):
+def profile_context_block():
     """Persian text block for prompts.py — the compact 'Audience profile:'
-    summary both review documents describe. best_formats is pulled from
-    strategy.json (already computed weekly by weekly_strategy.py) instead
-    of being duplicated here, so format preference has one source of
-    truth."""
+    summary both review documents describe.
+
+    Top-performing formats are read directly from
+    analytics.recent_score_summary() (the real, measured reward_score) —
+    previously this pulled strategy.json's best_formats instead, but that
+    key doesn't exist anymore now that schedule weighting is itself a
+    deterministic function of this same number (see schedule_builder.py's
+    module docstring); this was the only other place still assuming
+    best_formats existed."""
     profile = load_json(AUDIENCE_PROFILE_PATH, _default_profile())
     lines = []
     if profile.get("weak_categories"):
@@ -102,9 +108,10 @@ def profile_context_block(strategy=None):
         )
     if profile.get("avg_quiz_accuracy") is not None:
         lines.append(f"میانگین درصد پاسخ درست کوییزهای اخیر: {profile['avg_quiz_accuracy']}٪")
-    if strategy and strategy.get("best_formats"):
+    score_summary = analytics.recent_score_summary()
+    if score_summary:
+        top_formats = sorted(score_summary, key=score_summary.get, reverse=True)[:3]
         lines.append(
-            "فرمت‌هایی که این مخاطب طبق بازخورد واقعی بیشتر باهاشون تعامل می‌کنه: "
-            + "، ".join(strategy["best_formats"])
+            "فرمت‌هایی که طبق امتیاز واقعی تعامل اخیر بهتر عمل کردن: " + "، ".join(top_formats)
         )
     return "\n".join(lines)

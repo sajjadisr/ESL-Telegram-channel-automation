@@ -97,6 +97,30 @@ def send_document(image_bytes, caption, chat_id=None):
     return response.json()
 
 
+def send_voice(ogg_bytes, caption, chat_id=None):
+    """Post a generated voice note with its caption. Telegram's sendVoice
+    requires the audio as OGG encoded with Opus specifically (Bot API
+    docs) — anything else is silently rejected or misplayed, which is why
+    voice_note.py always converts to that exact format before this is
+    ever called. Caption cap is the same 1024 chars as sendPhoto/
+    sendDocument."""
+    url = f"{API_BASE}/sendVoice"
+    caption = truncate_html_safe(caption, max_len=1024)
+    response = _post_with_retry(
+        url,
+        data={
+            "chat_id": chat_id or TELEGRAM_CHANNEL_ID,
+            "caption": caption,
+            "parse_mode": "HTML",
+        },
+        files={"voice": ("voice_note.ogg", ogg_bytes, "audio/ogg")},
+    )
+    if not response.ok:
+        print("Telegram sendVoice API error response:", response.text)
+    response.raise_for_status()
+    return response.json()
+
+
 def send_poll(question, options, is_quiz=False, correct_option_id=None, explanation=None):
     """Native Telegram poll/quiz — a real poll object, not text. Vote polls
     (is_quiz=False) have no right answer; quiz polls mark one option correct

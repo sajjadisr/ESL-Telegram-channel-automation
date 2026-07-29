@@ -202,6 +202,23 @@ def context_posts_for_generation(topic_keyword, category=None, recency_limit=5, 
     return combined
 
 
+def get_all_posts_for_embedding():
+    """Every published, non-meta-format post's (id, title, content) — used
+    by scripts/backfill_post_embeddings.py to retroactively embed history
+    that predates embeddings.py, so semantic dedup can see it too (see
+    AUDIT_FIXES.md's "coffee every morning" repeat for exactly the kind of
+    cross-topic duplicate this is meant to catch, including ones that
+    shipped before this feature existed)."""
+    conn = get_conn()
+    where = "format NOT IN ({}) AND status = 'published'".format(",".join("?" * len(_META_FORMATS)))
+    rows = conn.execute(
+        f"SELECT id, title, content FROM posts WHERE {where} ORDER BY id ASC",
+        _META_FORMATS,
+    ).fetchall()
+    conn.close()
+    return rows
+
+
 def count_posts(published_only=False):
     conn = get_conn()
     if published_only:

@@ -21,6 +21,7 @@ from prompts import (
 )
 from telegram_bot import (
     send_message, send_poll, send_admin_image_prompt, send_admin_message, send_photo, send_document,
+    send_voice,
 )
 from channels import broadcast_extra_channels, broadcast_extra_channels_photo, format_quiz_for_extra_channels
 from poll_feedback import harvest_pending_polls, save_pending_poll
@@ -36,6 +37,9 @@ import analytics
 import reader
 import news
 import recap_card
+import embeddings
+import engagement_harvest
+import voice_note
 
 MAX_REVIEW_ATTEMPTS = 2
 
@@ -127,25 +131,40 @@ def generate_reviewed_text(memory, strategy, related, topic, format_name,
         )
         return generate_content(prompt)
 
-    def _needs_retry(text, review):
-        return review.get("ok") is not True or bool(find_stray_script_chars(text))
+    def _check(text):
+        """One full pass of every automated gate a draft has to clear:
+        quality review, stray-script-character scan, and semantic dedup
+        (embeddings.check_semantic_duplicate) — the last one closes a gap
+        the keyword-based `related` context can't see: a reused example
+        sentence/scenario under a topic with an unrelated name or category
+        (see embeddings.py's module docstring for the concrete incident
+        this fixes). Returns (ok, review, stray_chars, dup_title)."""
+        review = review_content(build_review_prompt(text, format_name, topic_text=topic.get("topic")))
+        stray = find_stray_script_chars(text)
+        dup_title, _dup_score = embeddings.check_semantic_duplicate(text)
+        ok = review.get("ok") is True and not stray and dup_title is None
+        return ok, review, stray, dup_title
 
     content = _draft(extra_note)
-    review = review_content(build_review_prompt(content, format_name, topic_text=topic.get("topic")))
+    ok, review, stray, dup_title = _check(content)
     attempts = 0
-    while _needs_retry(content, review) and attempts < MAX_REVIEW_ATTEMPTS:
-        stray = find_stray_script_chars(content)
+    while not ok and attempts < MAX_REVIEW_ATTEMPTS:
         note = review.get("feedback", "") or ""
         if stray:
             note = (note + " " if note else "") + (
                 "متن قبلی چند کاراکتر عجیب و نامربوط داشت (نه فارسی، نه انگلیسی، نه اموجی معمولی: "
                 + " ".join(stray) + "). دوباره بنویس و فقط از حروف فارسی، انگلیسی، و اموجی معمولی استفاده کن."
             )
+        if dup_title:
+            note = (note + " " if note else "") + (
+                f"متن قبلی از نظر معنایی خیلی شبیه یه پست قبلیِ دیگه (به اسم «{dup_title}») بود — مثلاً "
+                "همون مثال، سناریو، یا جمله، حتی اگه موضوعش ظاهراً فرق داشت. یه مثال/سناریو/جمله‌ی کاملاً "
+                "تازه انتخاب کن، نه فقط یه تغییر جزئی روی همون قبلی."
+            )
         content = _draft(note=(extra_note + " " + note).strip())
-        review = review_content(build_review_prompt(content, format_name, topic_text=topic.get("topic")))
+        ok, review, stray, dup_title = _check(content)
         attempts += 1
 
-    stray = find_stray_script_chars(content)
     if stray:
         for ch in stray:
             content = content.replace(ch, "")
@@ -236,13 +255,16 @@ def handle_image_format(memory, strategy, related, topic, format_name, extra_not
     loses the post — worst case still costs the admin the five minutes it
     always used to cost.
 
-    Returns (content, status, extra_channel_results) — same shape the
-    caller already expects from the non-image branch, so a successful
-    auto-post now correctly counts as status="published" instead of always
-    being "pending_manual" (see the comment on record_topic_coverage below
-    for why that distinction used to not matter there, but does matter for
-    get_recent_posts/count_posts/recap eligibility, which all filter on
-    status='published')."""
+    Returns (content, status, extra_channel_results, message_id) — the same
+    first three the caller already expects from the non-image branch (a
+    successful auto-post now correctly counts as status="published"
+    instead of always being "pending_manual" — see the comment on
+    record_topic_coverage below for why that distinction used to not
+    matter there, but does matter for get_recent_posts/count_posts/recap
+    eligibility, which all filter on status='published'), plus the
+    Telegram message_id (None if nothing was actually posted to Telegram
+    this run) so callers can feed it to analytics.record_text_post for
+    engagement_harvest.py to look up later."""
     caption = generate_reviewed_text(memory, strategy, related, topic, format_name,
                                       extra_note=extra_note,
                                       campaign_note=campaign_note, profile_note=profile_note)
@@ -252,6 +274,7 @@ def handle_image_format(memory, strategy, related, topic, format_name, extra_not
     image_prompt = compose_image_prompt(scene_sentence)
 
     image_bytes = None
+    message_id = None
     try:
         # generate_image already retries per-model and falls back across
         # two model tiers internally (ai.py) — this try/except is just a
@@ -263,11 +286,13 @@ def handle_image_format(memory, strategy, related, topic, format_name, extra_not
 
     if image_bytes is not None:
         try:
-            send_photo(image_bytes, caption)
+            result = send_photo(image_bytes, caption)
+            message_id = (result or {}).get("result", {}).get("message_id")
         except Exception as exc:  # noqa: BLE001 — a Telegram send failure must not crash the run
             print("handle_image_format: send_photo failed, trying sendDocument fallback:", exc)
             try:
-                send_document(image_bytes, caption)
+                result = send_document(image_bytes, caption)
+                message_id = (result or {}).get("result", {}).get("message_id")
             except Exception as exc2:  # noqa: BLE001
                 print("handle_image_format: send_document fallback also failed, falling back to manual:", exc2)
                 image_bytes = None
@@ -283,6 +308,7 @@ def handle_image_format(memory, strategy, related, topic, format_name, extra_not
             f"[AUTO — image posted to Telegram + Eitaa/Bale]\n{caption}\n---\n{image_prompt}",
             "published",
             extra_results,
+            message_id,
         )
 
     admin_text = (
@@ -299,14 +325,73 @@ def handle_image_format(memory, strategy, related, topic, format_name, extra_not
         f"{caption}\n---\n{image_prompt}",
         "pending_manual",
         None,
+        None,
     )
+
+
+def handle_voice_format(memory, strategy, related, topic, format_name, extra_note="",
+                         campaign_note="", profile_note=""):
+    """Auto-generates and posts a voice note (Gemini TTS + ffmpeg PCM ->
+    OGG/Opus — see voice_note.py) — the pronunciation-focused format
+    telegram-esl-virality-blueprint.md makes the case for (see
+    prompts.FORMATS["voice_note"]'s comment): no amount of text conveys
+    what a sound actually sounds like.
+
+    Falls back to a plain TEXT post (not a manual admin hand-off, unlike
+    handle_image_format) if generation fails at any step — a script
+    written to be read aloud is still perfectly good Persian/English text
+    to just post, so there's a fully-automatic degraded option here that
+    images don't have (an image PROMPT isn't a substitute for the image;
+    a voice SCRIPT is a substitute for the audio).
+
+    Eitaa/Bale cross-posting is text-only for this format — unlike
+    handle_image_format's photo cross-post, audio upload isn't a confirmed
+    working path on either platform's API, and getting that wrong would
+    silently drop the post there instead of degrading it; text always
+    works.
+
+    Returns (content, status, extra_channel_results, message_id), the same
+    shape as handle_image_format."""
+    script = generate_reviewed_text(memory, strategy, related, topic, format_name,
+                                     extra_note=extra_note,
+                                     campaign_note=campaign_note, profile_note=profile_note)
+
+    ogg_bytes = None
+    message_id = None
+    try:
+        # generate_speech already retries per-model and falls back across
+        # two model tiers internally (ai.py); pcm_to_ogg_opus can still
+        # raise if ffmpeg itself is missing/broken — this try/except is
+        # the last-resort net for either, same spirit as
+        # handle_image_format's equivalent.
+        ogg_bytes = voice_note.build_voice_note(script)
+    except Exception as exc:  # noqa: BLE001 — a broken TTS/ffmpeg call must not crash the run
+        print("handle_voice_format: build_voice_note raised unexpectedly, falling back to text:", exc)
+
+    if ogg_bytes is not None:
+        try:
+            result = send_voice(ogg_bytes, script)
+            message_id = (result or {}).get("result", {}).get("message_id")
+        except Exception as exc:  # noqa: BLE001 — a Telegram send failure must not crash the run
+            print("handle_voice_format: send_voice failed, falling back to text:", exc)
+            ogg_bytes = None
+
+    if ogg_bytes is not None:
+        extra_results = broadcast_extra_channels(script)  # text-only on Eitaa/Bale — see docstring
+        return (script, "published", extra_results, message_id)
+
+    print("handle_voice_format: voice generation/delivery unavailable this run, posting text instead.")
+    result = send_message(script)
+    message_id = (result or {}).get("result", {}).get("message_id")
+    extra_results = broadcast_extra_channels(script)
+    return (script, "published", extra_results, message_id)
 
 
 def _try_recap_image(recap_titles, caption):
     """Best-effort image-card recap (content-pipeline-architecture.md §8).
-    Returns the extra_channel_results dict if it was rendered and posted
-    successfully (Telegram + Eitaa/Bale), or None if the caller should fall
-    back to the plain-text post instead.
+    Returns (message_id, extra_channel_results) if it was rendered and
+    posted successfully (Telegram + Eitaa/Bale), or None if the caller
+    should fall back to the plain-text post instead.
 
     Every failure path here is a silent log line, not an admin alert —
     unlike handle_image_format's illustrated_pun (where a failed image IS
@@ -331,16 +416,18 @@ def _try_recap_image(recap_titles, caption):
         return None
 
     try:
-        send_photo(image_bytes, caption)
+        result = send_photo(image_bytes, caption)
     except Exception as exc:  # noqa: BLE001
         print("recap image: send_photo failed, trying sendDocument fallback:", exc)
         try:
-            send_document(image_bytes, caption)
+            result = send_document(image_bytes, caption)
         except Exception as exc2:  # noqa: BLE001
             print("recap image: send_document fallback also failed, falling back to text recap:", exc2)
             return None
 
-    return broadcast_extra_channels_photo(image_bytes, caption)
+    message_id = (result or {}).get("result", {}).get("message_id")
+    extra_results = broadcast_extra_channels_photo(image_bytes, caption)
+    return message_id, extra_results
 
 
 def _select_topic(memory, format_name, theme_category=None):
@@ -379,6 +466,7 @@ def _select_topic(memory, format_name, theme_category=None):
 
 def main():
     harvest_pending_polls()
+    engagement_harvest.harvest_engagement_metrics()
 
     fixed = remediate_stray_chars_in_db()
     if fixed:
@@ -403,7 +491,7 @@ def main():
     # generates content.
     campaign_state = campaigns.get_or_start_week(memory)
     campaign_note = campaigns.campaign_context_block(campaign_state)
-    profile_note = audience_profile.profile_context_block(strategy)
+    profile_note = audience_profile.profile_context_block()
 
     format_name, recap_preempted = resolve_today_format()
     fmt = FORMATS[format_name]
@@ -427,19 +515,23 @@ def main():
                                           recap_titles=recap_titles,
                                           campaign_note=campaign_note, profile_note=profile_note)
 
-        extra_results = _try_recap_image(recap_titles, content)
-        if extra_results is None:
+        recap_image_result = _try_recap_image(recap_titles, content)
+        if recap_image_result is None:
             # Image path unavailable (no font — see recap_card.py) or
             # failed somewhere — fall back to the plain-text post, which
             # is how this format has always worked and needs no asset.
-            send_message(content)
+            result = send_message(content)
+            message_id = (result or {}).get("result", {}).get("message_id")
             extra_results = broadcast_extra_channels(content)
+        else:
+            message_id, extra_results = recap_image_result
 
         save_post(date=today_str, format_name=format_name,
                    category="Recap", level="-", title="Progress recap",
                    content=content, keywords="recap", status="published")
         campaigns.record_post(campaign_state, today_str, format_name, "Progress recap")
-        analytics.record_text_post(format_name, "Progress recap", extra_channel_results=extra_results)
+        analytics.record_text_post(format_name, "Progress recap", extra_channel_results=extra_results,
+                                    message_id=message_id)
         print("پست مرور پیشرفت منتشر شد.")
         return
 
@@ -447,7 +539,7 @@ def main():
     # that's what preserves "quiz day" / "idiom day" / etc. "Extra" slots
     # (slot_number > FRESH_TOPICS_PER_DAY) exist because of the move to
     # POSTS_PER_DAY > 1, and are handled differently below: they never
-    # repeat a needs_poll/needs_image format within the same day (Audit:
+    # repeat a needs_poll/needs_image/needs_voice format within the same day (Audit:
     # that produced 3 near-duplicate quiz posts, or 3 separate manual-
     # image tasks, on days scheduled for those formats), and they check
     # for a due spaced-repetition review (topic_selection.get_due_review_
@@ -462,7 +554,7 @@ def main():
     reader_data = None
     news_item = None
     if slot_number > FRESH_TOPICS_PER_DAY:
-        if fmt["needs_poll"] or fmt["needs_image"]:
+        if fmt["needs_poll"] or fmt["needs_image"] or fmt.get("needs_voice"):
             format_name = DEFAULT_EXTRA_SLOT_FORMAT
             fmt = FORMATS[format_name]
 
@@ -589,7 +681,13 @@ def main():
         # (falling back to the old manual admin hand-off only if that
         # fails), so status/extra_results come from what actually happened
         # this run rather than being hardcoded to "pending_manual"/None.
-        content, status, extra_results = handle_image_format(
+        content, status, extra_results, message_id = handle_image_format(
+            memory, strategy, related, topic, format_name,
+            extra_note=extra_note,
+            campaign_note=campaign_note, profile_note=profile_note,
+        )
+    elif fmt.get("needs_voice"):
+        content, status, extra_results, message_id = handle_voice_format(
             memory, strategy, related, topic, format_name,
             extra_note=extra_note,
             campaign_note=campaign_note, profile_note=profile_note,
@@ -598,14 +696,16 @@ def main():
         content = generate_reviewed_text(memory, strategy, related, topic, format_name,
                                           extra_note=extra_note,
                                           campaign_note=campaign_note, profile_note=profile_note)
-        send_message(content)
+        result = send_message(content)
+        message_id = (result or {}).get("result", {}).get("message_id")
         extra_results = broadcast_extra_channels(content)
         status = "published"
 
     campaigns.record_post(campaign_state, today_str, format_name, topic["topic"])
-    analytics.record_text_post(format_name, topic["topic"], extra_channel_results=extra_results)
+    analytics.record_text_post(format_name, topic["topic"], extra_channel_results=extra_results,
+                                message_id=message_id)
 
-    save_post(
+    post_id = save_post(
         date=today_str,
         format_name=format_name,
         category=topic["category"],
@@ -617,6 +717,12 @@ def main():
         story_id=reader_data[0]["id"] if reader_data is not None else None,
         chunk_index=reader_data[1] if reader_data is not None else None,
     )
+    # Semantic-dedup store (embeddings.py) — the drafting-time check inside
+    # generate_reviewed_text/handle_image_format already compared this
+    # content against everything published so far; recording it now is what
+    # makes it visible to TOMORROW's check. A failure here never blocks
+    # anything — see record_post_embedding's docstring.
+    embeddings.record_post_embedding(post_id, topic["topic"], content)
 
     # Was `if status == "published" and not invented_idiom_mode:` — that
     # silently excluded illustrated_pun forever, since it always sets

@@ -4,3 +4,12 @@ feedparser==6.0.11
 Pillow==11.0.0
 arabic-reshaper==3.0.0
 python-bidi==0.6.3
+telethon==1.36.0
+
+# NOT a pip package: voice_note.py's PCM->OGG/Opus conversion shells out to
+# the `ffmpeg` binary (config.py has no equivalent constant for this since
+# it's a system dependency, not a Python one). The GitHub Actions runner
+# image ships it preinstalled; anywhere else, install it via the OS package
+# manager (e.g. `apt-get install ffmpeg`) before voice_note posts will work
+# — everything else in the pipeline is unaffected if it's missing, voice_note
+# just falls back to a plain text post (see voice_note.build_voice_note).

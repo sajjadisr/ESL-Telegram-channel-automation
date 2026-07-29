@@ -30,6 +30,7 @@ import ai  # noqa: E402
 import telegram_bot  # noqa: E402
 import channels  # noqa: E402
 import main  # noqa: E402
+import embeddings  # noqa: E402
 from google.genai import errors as genai_errors  # noqa: E402
 
 # Retry-with-backoff (ai.py, telegram_bot.py) sleeps between attempts —
@@ -146,13 +147,14 @@ RELATED = []
 def run_handle_image_format(image_behavior, telegram_behavior, eitaa_behavior="ok", bale_behavior="ok"):
     with mock.patch.object(ai._client.models, "generate_content",
                             side_effect=make_gemini_side_effect(image_behavior)), \
+         mock.patch.object(embeddings, "embed_text", return_value=None), \
          mock.patch.object(telegram_bot, "_post_with_retry",
                             side_effect=make_post_with_retry(telegram_behavior)), \
          mock.patch.object(channels.requests, "post",
                             side_effect=make_channels_post(eitaa_behavior, bale_behavior)), \
          mock.patch.object(main, "send_admin_message") as admin_msg, \
          mock.patch.object(main, "send_admin_image_prompt") as admin_prompt:
-        content, status, extra_results = main.handle_image_format(
+        content, status, extra_results, _message_id = main.handle_image_format(
             MEMORY, STRATEGY, RELATED, TOPIC, "illustrated_pun",
         )
     return content, status, extra_results, admin_msg, admin_prompt

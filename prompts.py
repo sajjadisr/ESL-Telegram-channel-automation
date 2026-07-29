@@ -49,8 +49,8 @@ PERSONA = (
 
 # ---------------------------------------------------------------------------
 # The weekly rotation (SKILL.md → "The weekly rotation"). Each key here is a
-# format_schedule.json value. needs_image / needs_poll tell main.py which
-# code path to route the post through.
+# format_schedule.json value. needs_image / needs_voice / needs_poll tell
+# main.py which code path to route the post through.
 # ---------------------------------------------------------------------------
 FORMATS = {
     "micro_scene": {
@@ -205,6 +205,28 @@ FORMATS = {
             "A1–A2 دوباره تعریف کن — با جمله‌های خودت، نه با کپی‌کردن جمله‌های منبع. این خبره، پس لازم نیست "
             "قلابش شخصیت/شوخی باشه؛ قلابش خودِ اتفاق واقعیه — چرا این خبر جالبه یا به زندگی روزمره ربط داره. "
             "از حدس‌زدن جزئیاتی که توی خلاصه نیومده خودداری کن."
+        ),
+    },
+    "voice_note": {
+        "label": "پیام صوتی",
+        "needs_image": False,
+        "needs_voice": True,
+        "needs_poll": None,
+        "use_tiers": False,
+        # Persian transfer errors + raw Vocabulary/Phrasal verbs are the
+        # cases where text structurally can't do the job — see
+        # voice_note.py's module docstring for why this format exists at
+        # all. Everything else already has a text format that covers it
+        # better; this one only earns its slot on content where hearing it
+        # is the actual point.
+        "category_filter": ["Persian transfer errors", "Vocabulary", "Phrasal verbs"],
+        "guidance": (
+            "این یه اسکریپت برای یه پیام صوتیه، نه یه پست متنی معمولی — قراره با صدای واقعی خونده بشه، پس "
+            "طبیعی و گفتاری بنویس، نه برای خوندن با چشم. روی تلفظ تمرکز کن: کلمه یا عبارت مورد نظر رو حداقل "
+            "دوبار واضح و آروم تکرار کن، بعد توی یه جمله‌ی کوتاه و طبیعی به‌کارش ببر و اون جمله رو هم بیار. "
+            "اگه این دقیقاً همون چیزیه که فارسی‌زبان‌ها معمولاً اشتباه تلفظ می‌کنن، مستقیم بهش اشاره کن "
+            "(«خیلیا اینو اینجوری میگن... ولی تلفظ درستش اینه»). کوتاه نگهش دار — حدود ۷۰ تا ۱۰۰ کلمه، یعنی "
+            "۳۰ تا ۴۵ ثانیه گفتار."
         ),
     },
 }
@@ -539,15 +561,15 @@ def filter_recent_feedback(feedback_list, window_weeks=FEEDBACK_WINDOW_WEEKS):
 
 
 def build_strategy_prompt(recent_posts, feedback_list):
+    """focus_more_on/focus_less_on only — best_formats used to be requested
+    here too, but format selection is now a deterministic function of
+    analytics.recent_score_summary() (see schedule_builder.py's module
+    docstring), so this prompt no longer asks the model to guess at it.
+    This function's only remaining job is genuinely qualitative topic-level
+    judgment a formula over a reward_score can't produce."""
     posts_text = "\n".join(f"- {p[0]} ({p[1]})" for p in recent_posts) or "خالی"
     recent_feedback = filter_recent_feedback(feedback_list)
     feedback_text = "\n".join(f"- {f['notes']}" for f in recent_feedback) or "خالی"
-    # best_formats must reference formats that actually exist in FORMATS —
-    # a prior version of this prompt let the model invent formats (audio
-    # clips, flashcards) that nothing in the codebase implements, which
-    # just misleads anyone reading strategy.json expecting it to reflect
-    # what's live (Audit #5).
-    valid_formats = "\n".join(f"- {name} ({fmt['label']})" for name, fmt in FORMATS.items())
 
     return f"""پست‌های اخیر کانال:
 {posts_text}
@@ -558,14 +580,10 @@ def build_strategy_prompt(recent_posts, feedback_list):
 بر اساس این اطلاعات، استراتژی محتوایی کانال را به‌روزرسانی کن (کانال فقط مبتدی‌محور است، پیشنهادها هم باید مبتدی‌محور بمانند).
 اگه بازخوردی شامل «درصد پاسخ درست» یه کوییز بود و درصد پایین بود (مثلاً زیر ۵۰٪)، اون موضوع رو به‌عنوان یه نکته‌ای که باید بیشتر تمرین/مرور بشه در نظر بگیر.
 
-best_formats فقط باید از بین فرمت‌های واقعاً موجود در سیستم انتخاب بشه (دقیقاً همین نام‌های کلید انگلیسی رو برگردون، نه فرمت‌های تخیلی مثل فایل صوتی یا فلش‌کارت که هنوز پیاده‌سازی نشدن):
-{valid_formats}
-
 فقط یک JSON با این ساختار دقیق برگردان، بدون هیچ توضیح اضافه:
 {{
   "focus_more_on": ["..."],
-  "focus_less_on": ["..."],
-  "best_formats": ["یکی یا چند تا از کلیدهای بالا، مثلاً micro_scene"]
+  "focus_less_on": ["..."]
 }}
 """
 
