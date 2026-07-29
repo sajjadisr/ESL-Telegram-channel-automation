@@ -177,5 +177,24 @@
     "message_id": 21,
     "views": null,
     "forwards": null
+  },
+  {
+    "date": "2026-07-29",
+    "question": "Progress recap",
+    "format": "progress_recap",
+    "is_quiz": null,
+    "vote_count": null,
+    "rolling_avg_votes_before_this_post": null,
+    "correct_rate": null,
+    "reward_score": null,
+    "experiment_id": null,
+    "variant_label": null,
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 22,
+    "views": null,
+    "forwards": null
   }
 ]
