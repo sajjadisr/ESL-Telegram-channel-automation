@@ -61,6 +61,11 @@
       "topic": "Family: father",
       "format": "voice_note",
       "date": "2026-07-30"
+    },
+    {
+      "topic": "Family: mother",
+      "format": "spot_mistake",
+      "date": "2026-07-30"
     }
   ],
   "avoid": [
