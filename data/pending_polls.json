@@ -1,16 +1,1 @@
-[
-  {
-    "message_id": 26,
-    "question": "خیلی از بچه‌ها این اصطلاح کاربردی رو اشتباه می‌گن! اگه بخوایم توی یه جمع غریبه سر صحبت رو باز کنیم و یخ رابطه رو بشکنیم، باید از کدوم عبارت استفاده کنیم؟",
-    "is_quiz": true,
-    "correct_index": 0,
-    "sent_date": "2026-07-31",
-    "theme_category": "Vocabulary",
-    "experiment_id": "hook_style_v1",
-    "variant_label": "statement_hook",
-    "extra_channel_delivery": {
-      "eitaa": "delivered",
-      "bale": "delivered"
-    }
-  }
-]
+[]

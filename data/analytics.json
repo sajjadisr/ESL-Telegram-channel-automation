@@ -253,5 +253,43 @@
     "message_id": 25,
     "views": null,
     "forwards": null
+  },
+  {
+    "date": "2026-07-31",
+    "question": "خیلی از بچه‌ها این اصطلاح کاربردی رو اشتباه می‌گن! اگه بخوایم توی یه جمع غریبه سر صحبت رو باز کنیم و یخ رابطه رو بشکنیم، باید از کدوم عبارت استفاده کنیم؟",
+    "format": "quiz",
+    "is_quiz": true,
+    "vote_count": 0,
+    "rolling_avg_votes_before_this_post": null,
+    "correct_rate": null,
+    "reward_score": 0.5,
+    "experiment_id": "hook_style_v1",
+    "variant_label": "statement_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 26,
+    "views": null,
+    "forwards": null
+  },
+  {
+    "date": "2026-07-31",
+    "question": "لاک‌پشت و خرگوش (The Tortoise and the Hare) — قسمت 2",
+    "format": "reader_installment",
+    "is_quiz": null,
+    "vote_count": null,
+    "rolling_avg_votes_before_this_post": null,
+    "correct_rate": null,
+    "reward_score": null,
+    "experiment_id": null,
+    "variant_label": null,
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 27,
+    "views": null,
+    "forwards": null
   }
 ]
