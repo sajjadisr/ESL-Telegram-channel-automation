@@ -1,96 +1,11 @@
 {
-  "week_start": "2026-07-25",
-  "theme_category": "Vocabulary",
+  "week_start": "2026-08-01",
+  "theme_category": "Grammar",
   "posts_this_week": [
     {
-      "date": "2026-07-25",
-      "format": "spot_mistake",
-      "title": "Present simple tense"
-    },
-    {
-      "date": "2026-07-26",
-      "format": "vocab_spotlight",
-      "title": "Food and restaurant vocabulary"
-    },
-    {
-      "date": "2026-07-26",
-      "format": "spot_mistake",
-      "title": "Daily routine words"
-    },
-    {
-      "date": "2026-07-27",
+      "date": "2026-08-01",
       "format": "micro_scene",
-      "title": "Family: mother"
-    },
-    {
-      "date": "2026-07-27",
-      "format": "reader_installment",
-      "title": "مورچه و ملخ (The Ant and the Grasshopper) — قسمت 1"
-    },
-    {
-      "date": "2026-07-27",
-      "format": "spot_mistake",
-      "title": "Present continuous tense"
-    },
-    {
-      "date": "2026-07-28",
-      "format": "spot_mistake",
-      "title": "Say vs tell"
-    },
-    {
-      "date": "2026-07-28",
-      "format": "reader_installment",
-      "title": "مورچه و ملخ (The Ant and the Grasshopper) — قسمت 2"
-    },
-    {
-      "date": "2026-07-28",
-      "format": "spot_mistake",
-      "title": "Food and restaurant vocabulary"
-    },
-    {
-      "date": "2026-07-29",
-      "format": "illustrated_pun",
-      "title": "Break the ice"
-    },
-    {
-      "date": "2026-07-29",
-      "format": "reader_installment",
-      "title": "مورچه و ملخ (The Ant and the Grasshopper) — قسمت 3"
-    },
-    {
-      "date": "2026-07-29",
-      "format": "progress_recap",
-      "title": "Progress recap"
-    },
-    {
-      "date": "2026-07-30",
-      "format": "voice_note",
-      "title": "Family: father"
-    },
-    {
-      "date": "2026-07-30",
-      "format": "reader_installment",
-      "title": "لاک‌پشت و خرگوش (The Tortoise and the Hare) — قسمت 1"
-    },
-    {
-      "date": "2026-07-30",
-      "format": "spot_mistake",
-      "title": "Family: mother"
-    },
-    {
-      "date": "2026-07-31",
-      "format": "quiz",
-      "title": "کوییز: Family: mother, لاک‌پشت و خرگوش (The Tortoise and the Hare) — قسمت 1, Family: father"
-    },
-    {
-      "date": "2026-07-31",
-      "format": "reader_installment",
-      "title": "لاک‌پشت و خرگوش (The Tortoise and the Hare) — قسمت 2"
-    },
-    {
-      "date": "2026-07-31",
-      "format": "vocab_spotlight",
-      "title": "Say vs tell"
+      "title": "Past simple tense"
     }
   ]
 }
