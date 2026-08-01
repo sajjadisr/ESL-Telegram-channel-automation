@@ -76,6 +76,11 @@
       "topic": "Past simple tense",
       "format": "micro_scene",
       "date": "2026-08-01"
+    },
+    {
+      "topic": "Break the ice",
+      "format": "spot_mistake",
+      "date": "2026-08-01"
     }
   ],
   "avoid": [
