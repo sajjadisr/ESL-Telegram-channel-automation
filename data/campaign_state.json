@@ -21,6 +21,11 @@
       "date": "2026-08-02",
       "format": "vocab_spotlight",
       "title": "Family: sister"
+    },
+    {
+      "date": "2026-08-02",
+      "format": "spot_mistake",
+      "title": "Family: father"
     }
   ]
 }
