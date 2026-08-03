@@ -41,6 +41,11 @@
       "date": "2026-08-03",
       "format": "progress_recap",
       "title": "Progress recap"
+    },
+    {
+      "date": "2026-08-03",
+      "format": "spot_mistake",
+      "title": "Family: sister"
     }
   ]
 }
