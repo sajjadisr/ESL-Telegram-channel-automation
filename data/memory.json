@@ -96,6 +96,11 @@
       "topic": "Past simple tense",
       "format": "spot_mistake",
       "date": "2026-08-02"
+    },
+    {
+      "topic": "There is / there are",
+      "format": "micro_scene",
+      "date": "2026-08-03"
     }
   ],
   "avoid": [
