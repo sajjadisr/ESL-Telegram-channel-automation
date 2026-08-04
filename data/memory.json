@@ -111,6 +111,11 @@
       "topic": "Do vs make (basic uses)",
       "format": "spot_mistake",
       "date": "2026-08-04"
+    },
+    {
+      "topic": "There is / there are",
+      "format": "spot_mistake",
+      "date": "2026-08-04"
     }
   ],
   "avoid": [
