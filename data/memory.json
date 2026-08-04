@@ -130,5 +130,10 @@
   "reader_progress": {
     "story_id": "tortoise_and_hare",
     "next_chunk_index": 2
-  }
+  },
+  "news_seen_links": [
+    "https://www.bbc.co.uk/sounds/play/w3ct8jy6?at_medium=RSS&at_campaign=rss"
+  ],
+  "news_consecutive_failures": 0,
+  "news_health_alerted": false
 }
