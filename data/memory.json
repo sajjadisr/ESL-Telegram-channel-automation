@@ -116,6 +116,11 @@
       "topic": "There is / there are",
       "format": "spot_mistake",
       "date": "2026-08-04"
+    },
+    {
+      "topic": "Piece of cake",
+      "format": "illustrated_pun",
+      "date": "2026-08-05"
     }
   ],
   "avoid": [
