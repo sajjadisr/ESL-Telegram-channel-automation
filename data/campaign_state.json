@@ -81,6 +81,11 @@
       "date": "2026-08-06",
       "format": "voice_note",
       "title": "Family: brother"
+    },
+    {
+      "date": "2026-08-06",
+      "format": "spot_mistake",
+      "title": "Piece of cake"
     }
   ]
 }

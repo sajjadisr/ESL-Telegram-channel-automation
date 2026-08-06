@@ -131,6 +131,11 @@
       "topic": "Family: brother",
       "format": "voice_note",
       "date": "2026-08-06"
+    },
+    {
+      "topic": "Piece of cake",
+      "format": "spot_mistake",
+      "date": "2026-08-06"
     }
   ],
   "avoid": [
