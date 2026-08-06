@@ -86,6 +86,11 @@
       "date": "2026-08-06",
       "format": "spot_mistake",
       "title": "Piece of cake"
+    },
+    {
+      "date": "2026-08-06",
+      "format": "news_relevel",
+      "title": "Tech Life"
     }
   ]
 }
