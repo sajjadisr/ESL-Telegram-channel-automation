@@ -101,6 +101,11 @@
       "date": "2026-08-07",
       "format": "spot_mistake",
       "title": "Family: brother"
+    },
+    {
+      "date": "2026-08-07",
+      "format": "news_relevel",
+      "title": "Tech Now"
     }
   ]
 }
