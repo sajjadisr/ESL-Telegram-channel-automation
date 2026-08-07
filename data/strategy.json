@@ -1,10 +1,12 @@
 {
   "focus_more_on": [
-    "Idioms (especially \"break the ice\" usage and practice)",
-    "Interactive quizzes on common idioms to boost engagement"
+    "واژگان پایه‌ای و روزمره (مانند اعضای خانواده)",
+    "کاربرد اشتباهات رایج مبتدیان (مانند تفاوت Do و Make)",
+    "گرامر کاربردی سطح مبتدی (مانند گذشته ساده و کاربرد there is/there are)"
   ],
   "focus_less_on": [
-    "Say vs tell (already well‑understood, duplicate posts)",
-    "Family vocabulary (mother/father) – over‑represented"
+    "اخبار پیچیده و تخصصی (مانند اخبار تکنولوژی و مالی اسپیس‌ایکس)",
+    "اصطلاحات و کنایه‌ها (Idioms) به دلیل عدم تعامل و سختی برای مبتدیان",
+    "نکات بسیار ساده زمان حال ساده (به دلیل درصد پاسخ صحیح بالای مخاطبان)"
   ]
 }
