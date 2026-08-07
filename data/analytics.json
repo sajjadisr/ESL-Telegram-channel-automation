@@ -652,5 +652,43 @@
     "message_id": 46,
     "views": null,
     "forwards": null
+  },
+  {
+    "date": "2026-08-07",
+    "question": "کدوم کلمه برای کامل کردن این جمله درسته؟\n\"I always ___ my homework after school.\"",
+    "format": "quiz",
+    "is_quiz": true,
+    "vote_count": 0,
+    "rolling_avg_votes_before_this_post": 0.0,
+    "correct_rate": null,
+    "reward_score": 0.5,
+    "experiment_id": "hook_style_v1",
+    "variant_label": "direct_question_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 47,
+    "views": null,
+    "forwards": null
+  },
+  {
+    "date": "2026-08-07",
+    "question": "Family: brother",
+    "format": "spot_mistake",
+    "is_quiz": null,
+    "vote_count": null,
+    "rolling_avg_votes_before_this_post": null,
+    "correct_rate": null,
+    "reward_score": null,
+    "experiment_id": null,
+    "variant_label": null,
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 48,
+    "views": null,
+    "forwards": null
   }
 ]

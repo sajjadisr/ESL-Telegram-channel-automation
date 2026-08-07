@@ -96,6 +96,11 @@
       "date": "2026-08-07",
       "format": "quiz",
       "title": "کوییز: Tech Life, Piece of cake, Family: brother"
+    },
+    {
+      "date": "2026-08-07",
+      "format": "spot_mistake",
+      "title": "Family: brother"
     }
   ]
 }
