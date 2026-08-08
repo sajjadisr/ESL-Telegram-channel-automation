@@ -1,111 +1,11 @@
 {
-  "week_start": "2026-08-01",
-  "theme_category": "Grammar",
+  "week_start": "2026-08-08",
+  "theme_category": "Vocabulary",
   "posts_this_week": [
     {
-      "date": "2026-08-01",
-      "format": "micro_scene",
-      "title": "Past simple tense"
-    },
-    {
-      "date": "2026-08-01",
-      "format": "reader_installment",
-      "title": "لاک‌پشت و خرگوش (The Tortoise and the Hare) — قسمت 3"
-    },
-    {
-      "date": "2026-08-01",
-      "format": "spot_mistake",
-      "title": "Break the ice"
-    },
-    {
-      "date": "2026-08-02",
-      "format": "vocab_spotlight",
-      "title": "Family: sister"
-    },
-    {
-      "date": "2026-08-02",
-      "format": "spot_mistake",
-      "title": "Family: father"
-    },
-    {
-      "date": "2026-08-02",
-      "format": "spot_mistake",
-      "title": "Past simple tense"
-    },
-    {
-      "date": "2026-08-03",
-      "format": "micro_scene",
-      "title": "There is / there are"
-    },
-    {
-      "date": "2026-08-03",
+      "date": "2026-08-08",
       "format": "progress_recap",
       "title": "Progress recap"
-    },
-    {
-      "date": "2026-08-03",
-      "format": "spot_mistake",
-      "title": "Family: sister"
-    },
-    {
-      "date": "2026-08-04",
-      "format": "spot_mistake",
-      "title": "Do vs make (basic uses)"
-    },
-    {
-      "date": "2026-08-04",
-      "format": "spot_mistake",
-      "title": "There is / there are"
-    },
-    {
-      "date": "2026-08-04",
-      "format": "news_relevel",
-      "title": "Tech Life"
-    },
-    {
-      "date": "2026-08-05",
-      "format": "illustrated_pun",
-      "title": "Piece of cake"
-    },
-    {
-      "date": "2026-08-05",
-      "format": "vocab_spotlight",
-      "title": "Do vs make (basic uses)"
-    },
-    {
-      "date": "2026-08-05",
-      "format": "news_relevel",
-      "title": "SpaceX shares sink after first earnings report reveals huge AI spending plans"
-    },
-    {
-      "date": "2026-08-06",
-      "format": "voice_note",
-      "title": "Family: brother"
-    },
-    {
-      "date": "2026-08-06",
-      "format": "spot_mistake",
-      "title": "Piece of cake"
-    },
-    {
-      "date": "2026-08-06",
-      "format": "news_relevel",
-      "title": "Tech Life"
-    },
-    {
-      "date": "2026-08-07",
-      "format": "quiz",
-      "title": "کوییز: Tech Life, Piece of cake, Family: brother"
-    },
-    {
-      "date": "2026-08-07",
-      "format": "spot_mistake",
-      "title": "Family: brother"
-    },
-    {
-      "date": "2026-08-07",
-      "format": "news_relevel",
-      "title": "Tech Now"
     }
   ]
 }
