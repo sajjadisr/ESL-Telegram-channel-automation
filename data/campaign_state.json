@@ -6,6 +6,11 @@
       "date": "2026-08-08",
       "format": "progress_recap",
       "title": "Progress recap"
+    },
+    {
+      "date": "2026-08-08",
+      "format": "news_relevel",
+      "title": "What can we see during the partial solar eclipse?"
     }
   ]
 }
