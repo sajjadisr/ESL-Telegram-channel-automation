@@ -21,6 +21,11 @@
       "date": "2026-08-09",
       "format": "vocab_spotlight",
       "title": "Family: grandmother"
+    },
+    {
+      "date": "2026-08-09",
+      "format": "news_relevel",
+      "title": "Is this the best day of the year for stargazing?"
     }
   ]
 }
