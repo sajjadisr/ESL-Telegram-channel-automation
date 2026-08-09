@@ -804,5 +804,24 @@
     "message_id": 54,
     "views": null,
     "forwards": null
+  },
+  {
+    "date": "2026-08-09",
+    "question": "Couple turning inherited farm into nature site",
+    "format": "news_relevel",
+    "is_quiz": null,
+    "vote_count": null,
+    "rolling_avg_votes_before_this_post": null,
+    "correct_rate": null,
+    "reward_score": null,
+    "experiment_id": null,
+    "variant_label": null,
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 55,
+    "views": null,
+    "forwards": null
   }
 ]
