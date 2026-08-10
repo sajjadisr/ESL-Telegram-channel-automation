@@ -41,6 +41,11 @@
       "date": "2026-08-10",
       "format": "spot_mistake",
       "title": "Family: grandmother"
+    },
+    {
+      "date": "2026-08-10",
+      "format": "news_relevel",
+      "title": "Woman questions hosepipe ban while leak not fixed"
     }
   ]
 }
