@@ -146,6 +146,11 @@
       "topic": "Family: grandmother",
       "format": "vocab_spotlight",
       "date": "2026-08-09"
+    },
+    {
+      "topic": "Family: grandfather",
+      "format": "micro_scene",
+      "date": "2026-08-10"
     }
   ],
   "avoid": [
