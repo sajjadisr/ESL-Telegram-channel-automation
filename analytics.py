@@ -35,7 +35,8 @@ import clock
 from channels import _api_ok, NOT_CONFIGURED
 from config import (
     ANALYTICS_PATH, REWARD_WEIGHT_ENGAGEMENT, REWARD_WEIGHT_LEARNING,
-    FORWARD_WEIGHT_MULTIPLIER, ENGAGEMENT_HARVEST_WINDOW_DAYS,
+    FORWARD_WEIGHT_MULTIPLIER, REACTION_WEIGHT_MULTIPLIER,
+    ENGAGEMENT_HARVEST_WINDOW_DAYS,
 )
 from memory import load_json, save_json
 
@@ -111,7 +112,12 @@ def _engagement_value(entry):
     if entry.get("vote_count") is not None:
         return entry["vote_count"]
     if entry.get("views") is not None:
-        return entry["views"] + (entry.get("forwards") or 0) * FORWARD_WEIGHT_MULTIPLIER
+        reactions = entry.get("reactions") or 0
+        return (
+            entry["views"]
+            + (entry.get("forwards") or 0) * FORWARD_WEIGHT_MULTIPLIER
+            + reactions * REACTION_WEIGHT_MULTIPLIER
+        )
     return None
 
 
@@ -148,18 +154,25 @@ def score_entry(entry, analytics, exclude_index=None):
 
 
 def entries_pending_harvest(analytics=None, window_days=None):
-    """message_ids that have been sent but have no views yet, within the
-    last `window_days` (config.ENGAGEMENT_HARVEST_WINDOW_DAYS by default)
-    — what engagement_harvest.py needs to ask Telethon to look up. Entries
-    older than the window just keep whatever reading they last got (see
-    config.ENGAGEMENT_HARVEST_WINDOW_DAYS's comment for why that's a
-    reasonable place to stop chasing a moving target)."""
-    window_days = window_days or ENGAGEMENT_HARVEST_WINDOW_DAYS
+    """message_ids that have been sent but have no views yet.
+
+    By default, this returns every pending entry with a message_id and no
+    confirmed `views` metric, regardless of age, so an old post that was
+    never harvested isn't permanently forgotten. The `window_days`
+    parameter is still supported for optional short-window filtering, but
+    the default behavior preserves backfill ability for late-arriving
+    measurements.
+    """
     analytics = analytics if analytics is not None else load_json(ANALYTICS_PATH, [])
-    cutoff = clock.today() - datetime.timedelta(days=window_days)
+    cutoff = None
+    if window_days is not None:
+        cutoff = clock.today() - datetime.timedelta(days=window_days)
     pending = []
     for e in analytics:
         if not e.get("message_id") or e.get("views") is not None:
+            continue
+        if cutoff is None:
+            pending.append(e["message_id"])
             continue
         try:
             entry_date = datetime.date.fromisoformat(e.get("date", ""))
@@ -202,11 +215,21 @@ def apply_harvested_engagement(updates):
         mid = entry.get("message_id")
         if mid not in updates or entry.get("views") is not None:
             continue
-        views, forwards = updates[mid]
+        update = updates[mid]
+        if len(update) == 3:
+            views, forwards, reactions = update
+        else:
+            views, forwards = update
+            reactions = None
         entry["views"] = views
         entry["forwards"] = forwards
+        entry["reactions"] = reactions
 
-        value = views + (forwards or 0) * FORWARD_WEIGHT_MULTIPLIER
+        value = (
+            views
+            + (forwards or 0) * FORWARD_WEIGHT_MULTIPLIER
+            + (reactions or 0) * REACTION_WEIGHT_MULTIPLIER
+        )
         avg = baseline.get(entry["format"])
         engagement = min(value / avg, 2.0) / 2.0 if avg else 0.5
         correct_rate = entry.get("correct_rate")
@@ -347,6 +370,7 @@ def record_text_post(format_name, title, extra_channel_results=None, message_id=
             "message_id": message_id,
             "views": None,
             "forwards": None,
+            "reactions": None,
         })
         save_json(ANALYTICS_PATH, analytics)
     except Exception as exc:  # noqa: BLE001 — see docstring: must never look like the publish failed
@@ -401,3 +425,10 @@ def recent_score_summary(analytics=None, limit=10):
         fmt: round(sum(scores[-limit:]) / len(scores[-limit:]), 3)
         for fmt, scores in scores_by_format.items()
     }
+
+
+def top_scored_posts(limit=3):
+    analytics_data = load_json(ANALYTICS_PATH, [])
+    scored = [e for e in analytics_data if e.get("reward_score") is not None]
+    scored.sort(key=lambda e: e.get("reward_score", 0), reverse=True)
+    return scored[:limit]

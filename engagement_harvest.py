@@ -69,7 +69,17 @@ def _fetch_views_forwards(message_ids):
         for msg in messages:
             if msg is None:
                 continue
-            results[msg.id] = (msg.views or 0, msg.forwards or 0)
+            reactions = getattr(msg, "reactions", None)
+            reaction_count = None
+            if reactions is not None:
+                reaction_count = getattr(reactions, "count", None)
+                if reaction_count is None:
+                    reaction_count = getattr(reactions, "total", None)
+                try:
+                    reaction_count = int(reaction_count)
+                except (TypeError, ValueError):
+                    reaction_count = None
+            results[msg.id] = (msg.views or 0, msg.forwards or 0, reaction_count)
     finally:
         client.disconnect()
     return results

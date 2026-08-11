@@ -73,6 +73,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
         run: |
+          set -euo pipefail
           git config user.name "channel-bot"
           git config user.email "actions@github.com"
           git add data/strategy.json data/format_schedule.json

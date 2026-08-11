@@ -160,6 +160,13 @@ to the upload, or the specific function named was never touched.
 
 ---
 
+## Post-handoff progress
+
+The following previously not-started items have now been addressed in this session:
+`#39`, `#41`, `#42`, `#43`, `#61-64`, `#65`, `#69`, `#70`, `#75`, `#77`, `#82`, `#83`, `#98`, `#99`, `#100`.
+
+The remaining pending items are `#38`, `#84`, `#87`, `#88`, `#96`, `#97`, and `#101`.
+
 ## Cannot verify / cannot fix from here (2)
 
 | # | Description | Why |

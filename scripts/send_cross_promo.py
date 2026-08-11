@@ -8,9 +8,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import EITAA_TOKEN, EITAA_CHANNEL_ID, BALE_BOT_TOKEN, BALE_CHAT_ID
+from config import CHANNEL_DISPLAY_NAME, EITAA_TOKEN, EITAA_CHANNEL_ID, BALE_BOT_TOKEN, BALE_CHAT_ID
 from telegram_bot import send_message
-from channels import send_eitaa, send_bale
+from channels import broadcast_extra_channels
 
 
 def _eitaa_configured():
@@ -23,41 +23,44 @@ def _bale_configured():
 
 def _telegram_text():
     lines = [
-        "📢 یادت باشه @InEnglish رو فقط اینجا دنبال نکن!",
+        f"📢 یادت باشه {CHANNEL_DISPLAY_NAME} رو فقط اینجا دنبال نکن!",
         "",
         "این کانال روی چند پلتفرم دیگه هم با همین محتوا فعاله — هرکدوم که برات راحت‌تره:",
-        "🔹 تلگرام: همین‌جا (@InEnglish)",
+        f"🔹 تلگرام: همین‌جا ({CHANNEL_DISPLAY_NAME})",
     ]
     if _bale_configured():
-        lines.append("🔹 بله: @InEnglish")
+        lines.append(f"🔹 بله: {CHANNEL_DISPLAY_NAME}")
     if _eitaa_configured():
-        lines.append("🔹 ایتا: @InEnglish")
+        lines.append(f"🔹 ایتا: {CHANNEL_DISPLAY_NAME}")
     if not (_bale_configured() or _eitaa_configured()):
         lines.append("(پلتفرم‌های دیگه هنوز فعال نشدن.)")
     lines.extend(["", "اگه یکی از دوستات فقط تو یکی از این پلتفرم‌هاست، این پست رو براش فوروارد کن 🙌"])
     return "\n".join(lines)
 
 
-def _extra_text(platform):
-    if platform == "eitaa":
-        base = ["📢 یادت باشه @InEnglish رو فقط اینجا دنبال نکن!", "", "این کانال روی چند پلتفرم دیگه هم فعاله:", "🔹 ایتا: همین‌جا (@InEnglish)", "🔹 تلگرام: @InEnglish"]
-        if _bale_configured():
-            base.append("🔹 بله: @InEnglish")
-    else:
-        base = ["📢 یادت باشه @InEnglish رو فقط اینجا دنبال نکن!", "", "این کانال روی چند پلتفرم دیگه هم فعاله:", "🔹 بله: همین‌جا (@InEnglish)", "🔹 تلگرام: @InEnglish"]
-        if _eitaa_configured():
-            base.append("🔹 ایتا: @InEnglish")
-    base.extend(["", "اگه یکی از دوستات فقط تو یکی از این پلتفرم‌هاست، این پست رو براش فوروارد کن 🙌"])
-    return "\n".join(base)
+def _extra_text():
+    lines = [
+        f"📢 یادت باشه {CHANNEL_DISPLAY_NAME} رو فقط اینجا دنبال نکن!",
+        "",
+        "این کانال روی چند پلتفرم دیگه هم فعاله:",
+        f"🔹 تلگرام: {CHANNEL_DISPLAY_NAME}",
+    ]
+    if _bale_configured():
+        lines.append(f"🔹 بله: {CHANNEL_DISPLAY_NAME}")
+    if _eitaa_configured():
+        lines.append(f"🔹 ایتا: {CHANNEL_DISPLAY_NAME}")
+    lines.extend(["", "اگه یکی از دوستات فقط تو یکی از این پلتفرم‌هاست، این پست رو براش فوروارد کن 🙌"])
+    return "\n".join(lines)
 
 
 def main():
-    send_message(_telegram_text())
-    if _eitaa_configured():
-        send_eitaa(_extra_text("eitaa"))
-    if _bale_configured():
-        send_bale(_extra_text("bale"))
-    print("Cross-promo message sent (per-platform text).")
+    try:
+        send_message(_telegram_text())
+    except Exception as exc:
+        print("Cross-promo: Telegram send failed, continuing with extra channels:", exc)
+
+    extra_results = broadcast_extra_channels(_extra_text())
+    print("Cross-promo message sent. Extra channel results:", extra_results)
 
 
 if __name__ == "__main__":

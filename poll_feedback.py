@@ -24,10 +24,13 @@ import audience_profile
 MAX_SUCCESSFUL_PATTERNS = 20
 _HIGH_CORRECT_RATE = 70
 _LOW_CORRECT_RATE = 40
+MAX_PENDING_POLL_RETRIES = 5
+MAX_PENDING_POLL_DAYS = 7
 
 
 def save_pending_poll(message_id, question, is_quiz=False, correct_index=None,
-                       theme_category=None, experiment_id=None, variant_label=None,
+                       theme_category=None, topic_category=None,
+                       experiment_id=None, variant_label=None,
                        extra_channel_results=None):
     pending = load_json(PENDING_POLLS_PATH, [])
     pending.append({
@@ -36,7 +39,10 @@ def save_pending_poll(message_id, question, is_quiz=False, correct_index=None,
         "is_quiz": is_quiz,
         "correct_index": correct_index,
         "sent_date": clock.today_str(),
+        "first_attempt_date": clock.today_str(),
+        "retry_count": 0,
         "theme_category": theme_category,
+        "topic_category": topic_category,
         "experiment_id": experiment_id,
         "variant_label": variant_label,
         "extra_channel_delivery": analytics._summarize_delivery(extra_channel_results),
@@ -69,8 +75,29 @@ def harvest_pending_polls():
     still_pending = []
 
     for entry in pending:
+        entry.setdefault("retry_count", 0)
+        entry.setdefault("first_attempt_date", entry.get("sent_date") or clock.today_str())
+
         result = stop_poll(entry["message_id"])
         if not result or not result.get("ok"):
+            entry["retry_count"] = entry.get("retry_count", 0) + 1
+            try:
+                first_date = datetime.date.fromisoformat(entry["first_attempt_date"])
+            except ValueError:
+                first_date = clock.today()
+            age_days = max(0, (clock.today() - first_date).days)
+            if entry["retry_count"] >= MAX_PENDING_POLL_RETRIES or age_days >= MAX_PENDING_POLL_DAYS:
+                send_admin_message(
+                    f"⚠️ نظرسنجی/کوییز با message_id={entry['message_id']} بعد از "
+                    f"{entry['retry_count']} تلاش یا {age_days} روز هنوز بسته نشده؛ از فهرست منتظرها خارج شد. "
+                    "لطفاً اگر هنوز باز است، دستی بررسی کنید."
+                )
+                print(
+                    "harvest_pending_polls: giving up on pending poll",
+                    entry["message_id"],
+                    f"after {entry['retry_count']} retries and {age_days} days",
+                )
+                continue
             still_pending.append(entry)
             continue
 
@@ -134,7 +161,7 @@ def harvest_pending_polls():
         # Weakness 1 (audience profile) — only quizzes carry a graded,
         # topic-attributable signal (vote_poll has no right answer).
         if correct_rate is not None:
-            audience_profile.update_from_quiz_result(entry.get("theme_category"), correct_rate)
+            audience_profile.update_from_quiz_result(entry.get("topic_category") or entry.get("theme_category"), correct_rate)
 
     save_json(FEEDBACK_PATH, feedback_list)
     save_json(PENDING_POLLS_PATH, still_pending)

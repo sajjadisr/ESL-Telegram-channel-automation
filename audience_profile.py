@@ -56,7 +56,7 @@ def update_from_quiz_result(category, correct_rate):
 
     weak = profile.setdefault("weak_categories", [])
     strong = profile.setdefault("strong_categories", [])
-    if category:
+    if category is not None and correct_rate is not None:
         if correct_rate <= AUDIENCE_WEAK_THRESHOLD:
             _bump(weak, category)
             if category in strong:
@@ -65,6 +65,13 @@ def update_from_quiz_result(category, correct_rate):
             _bump(strong, category)
             if category in weak:
                 weak.remove(category)
+        else:
+            # Bug fix (#41): a medium correct-rate should clear any stale
+            # weak/strong flag for this category, not leave it stuck.
+            if category in weak:
+                weak.remove(category)
+            if category in strong:
+                strong.remove(category)
 
     history = profile.setdefault("quiz_accuracy_history", [])
     history.append(correct_rate)
@@ -114,4 +121,13 @@ def profile_context_block():
         lines.append(
             "فرمت‌هایی که طبق امتیاز واقعی تعامل اخیر بهتر عمل کردن: " + "، ".join(top_formats)
         )
+
+    top_posts = analytics.top_scored_posts(limit=3)
+    if top_posts:
+        examples = []
+        for post in top_posts:
+            title = post.get("question") or "(بدون عنوان)"
+            score = post.get("reward_score")
+            examples.append(f"«{title}» ({score})")
+        lines.append("پست‌های موفق اخیر: " + "، ".join(examples))
     return "\n".join(lines)

@@ -146,6 +146,7 @@ ENGAGEMENT_HARVEST_WINDOW_DAYS = 14
 # in someone's chat list. Weighted higher so the composite engagement value
 # analytics.py scores formats on reflects that, not raw reach alone.
 FORWARD_WEIGHT_MULTIPLIER = 3
+REACTION_WEIGHT_MULTIPLIER = 1
 
 # --- Semantic dedup via embeddings (embeddings.py) --------------------------
 # Cosine-similarity threshold above which a freshly-drafted post is treated

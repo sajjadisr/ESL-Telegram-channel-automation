@@ -33,6 +33,11 @@ def build_intelligence_report_text():
     else:
         lines.append("هنوز هیچ کوییز/نظرسنجی‌ای بسته و امتیازدهی نشده — امتیاز ترکیبی فعلاً موجود نیست.")
 
+    recent_posts = get_recent_posts(limit=3)
+    if recent_posts:
+        sample_titles = "، ".join(f"«{p[0]}»" for p in recent_posts[:3])
+        lines.append(f"نمونه‌های اخیر پست برای بررسی دستی: {sample_titles}")
+
     profile = audience_profile.get_profile()
     if profile.get("avg_quiz_accuracy") is not None:
         lines.append(f"میانگین درصد پاسخ درست کوییزهای اخیر: {profile['avg_quiz_accuracy']}٪")

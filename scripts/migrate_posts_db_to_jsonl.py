@@ -24,6 +24,7 @@ Safe to run more than once — it reads posts.db fresh each time and
 overwrites posts.jsonl from scratch, it doesn't append to whatever's already
 there.
 """
+import argparse
 import json
 import sqlite3
 import sys
@@ -34,11 +35,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import DB_PATH, POSTS_JSONL_PATH
 
 
-def migrate():
+def migrate(force=False):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute("SELECT * FROM posts ORDER BY id").fetchall()
     conn.close()
+
+    if Path(POSTS_JSONL_PATH).exists():
+        existing_rows = sum(1 for _ in open(POSTS_JSONL_PATH, "r", encoding="utf-8"))
+        if existing_rows > len(rows) and not force:
+            raise RuntimeError(
+                f"Refusing to overwrite {POSTS_JSONL_PATH}: it already contains {existing_rows} rows, "
+                f"which is more than the {len(rows)} rows available in {DB_PATH}. "
+                "Delete or rename the existing JSONL, or rerun with --force if you really want to overwrite."
+            )
 
     with open(POSTS_JSONL_PATH, "w", encoding="utf-8") as f:
         for row in rows:
@@ -59,6 +69,17 @@ def migrate():
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     print(f"Migrated {len(rows)} row(s) from {DB_PATH} to {POSTS_JSONL_PATH}.")
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Migrate posts.db to posts.jsonl safely.")
+    parser.add_argument("--force", action="store_true", help="Overwrite posts.jsonl even if it contains more rows than the database export.")
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    migrate(force=args.force)
 
 
 if __name__ == "__main__":

@@ -329,11 +329,16 @@ def handle_poll_format(strategy, related, topic, format_name, recent_titles=None
     message_id = (result or {}).get("result", {}).get("message_id")
     if message_id is not None:
         save_pending_poll(
-            message_id, question, is_quiz=is_quiz, correct_index=correct_index,
-            theme_category=theme_category, experiment_id=experiment_id, variant_label=variant_label,
+            message_id,
+            question,
+            is_quiz=is_quiz,
+            correct_index=correct_index,
+            theme_category=theme_category,
+            topic_category=topic.get("category"),
+            experiment_id=experiment_id,
+            variant_label=variant_label,
             extra_channel_results=extra_results,
         )
-
     return json.dumps(data, ensure_ascii=False)
 
 
@@ -520,6 +525,16 @@ def _try_recap_image(recap_titles, caption):
     except Exception as exc:  # noqa: BLE001
         print("recap image: title generation failed, falling back to text recap:", exc)
         return None
+
+    stray = find_stray_script_chars(title)
+    if stray:
+        print("recap image: title contained stray characters, stripping before render:", stray)
+        for ch in stray:
+            title = title.replace(ch, "")
+        title = title.strip().strip('"').strip("«»")
+        if not title:
+            print("recap image: title became empty after stripping stray characters, falling back to text recap")
+            return None
 
     try:
         image_bytes = recap_card.render_recap_card(title, recap_titles)
@@ -795,9 +810,12 @@ def main():
         # column, already fetched — no extra query needed); only fall
         # back to recent_titles[0] verbatim if every one of the last 7
         # posts happens to be a reader/news post.
-        review_worthy_titles = [row[0] for row in recent_rows if row[1] not in ("Reader", "News")]
-        topic_title = review_worthy_titles[0] if review_worthy_titles else recent_titles[0]
-        topic = {"topic": topic_title, "level": "-", "category": "Review"}
+        review_worthy = [(row[0], row[1]) for row in recent_rows if row[1] not in ("Reader", "News")]
+        if review_worthy:
+            topic_title, topic_category = review_worthy[0]
+        else:
+            topic_title, topic_category = recent_titles[0], recent_rows[0][1]
+        topic = {"topic": topic_title, "level": "-", "category": topic_category}
         related = search_related_posts(topic_title)
 
         # Weakness 6 (sequential A/B testing) — quiz/vote_poll are the only

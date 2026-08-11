@@ -90,6 +90,9 @@ def summarize_results(exp, analytics):
     a result — reporting only; see module docstring on why nothing here
     auto-adopts a variant."""
     rows = [e for e in analytics if e.get("experiment_id") == exp["id"]]
+    assigned = exp.get("assigned_variants", [])
+    assigned_counts = {v["label"]: assigned.count(v["label"]) for v in exp["variants"]}
+
     summary = {}
     for v in exp["variants"]:
         label = v["label"]
@@ -97,7 +100,7 @@ def summarize_results(exp, analytics):
         votes = [r["vote_count"] for r in matching if r.get("vote_count") is not None]
         scores = [r["reward_score"] for r in matching if r.get("reward_score") is not None]
         summary[label] = {
-            "n": len(matching),
+            "n": max(len(matching), assigned_counts.get(label, 0)),
             "avg_votes": round(sum(votes) / len(votes), 1) if votes else None,
             "avg_score": round(sum(scores) / len(scores), 3) if scores else None,
         }
