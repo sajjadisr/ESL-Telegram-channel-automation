@@ -30,7 +30,9 @@ quiz/vote_poll produce a reward_score, same as before.
 
 import datetime
 
-from channels import _api_ok
+import clock
+
+from channels import _api_ok, NOT_CONFIGURED
 from config import (
     ANALYTICS_PATH, REWARD_WEIGHT_ENGAGEMENT, REWARD_WEIGHT_LEARNING,
     FORWARD_WEIGHT_MULTIPLIER, ENGAGEMENT_HARVEST_WINDOW_DAYS,
@@ -154,7 +156,7 @@ def entries_pending_harvest(analytics=None, window_days=None):
     reasonable place to stop chasing a moving target)."""
     window_days = window_days or ENGAGEMENT_HARVEST_WINDOW_DAYS
     analytics = analytics if analytics is not None else load_json(ANALYTICS_PATH, [])
-    cutoff = datetime.date.today() - datetime.timedelta(days=window_days)
+    cutoff = clock.today() - datetime.timedelta(days=window_days)
     pending = []
     for e in analytics:
         if not e.get("message_id") or e.get("views") is not None:
@@ -224,8 +226,8 @@ def apply_harvested_engagement(updates):
 
 def _summarize_delivery(extra_channel_results):
     """extra_channel_results is whatever channels.broadcast_extra_channels
-    returned: {"eitaa": response_or_None, "bale": response_or_None}. This
-    is delivery health (did the send succeed), not engagement — see module
+    returned: {"eitaa": response_or_sentinel_or_None, "bale": ...}. This is
+    delivery health (did the send succeed), not engagement — see module
     docstring.
 
     Uses channels._api_ok rather than checking response.ok directly —
@@ -233,17 +235,31 @@ def _summarize_delivery(extra_channel_results):
     docs are explicit that you also have to check the "ok" field in the
     JSON body; see channels._api_ok's docstring). Checking only response.ok
     here would silently record "delivered" for a send that actually
-    failed, which is exactly the failure mode this fix closes."""
+    failed, which is exactly the failure mode this fix closes.
+
+    Bug fix (#22): "not configured" and "failed" used to both collapse
+    into the same ambiguous "not_configured_or_failed" string, because
+    both cases used to come back as plain None from channels.py. Now that
+    channels.py returns a distinct NOT_CONFIGURED sentinel for "this
+    platform was never turned on" (see that module's #15/#16/#22 fixes),
+    and only returns bare None after a genuine failure that's already
+    been caught and alerted on upstream, these two very different
+    situations can finally be told apart here too — which is what lets an
+    admin (or a future feature) tell "Eitaa was just never set up" apart
+    from "Eitaa is configured but has been failing" using analytics.json
+    alone.
+    """
     if not extra_channel_results:
         return None
     summary = {}
     for platform, response in extra_channel_results.items():
-        verdict = _api_ok(response)
-        if response is None:
-            summary[platform] = "not_configured_or_failed"
-        elif verdict is True:
+        if response is NOT_CONFIGURED:
+            summary[platform] = "not_configured"
+        elif response is None:
+            summary[platform] = "error"  # a real failure — already caught + alerted upstream
+        elif _api_ok(response) is True:
             summary[platform] = "delivered"
-        elif verdict is False:
+        elif _api_ok(response) is False:
             summary[platform] = "error"
         else:
             summary[platform] = "unknown"
@@ -273,7 +289,7 @@ def record_poll_metrics(question, format_name, is_quiz, total_votes, correct_rat
     score = compute_reward_score(total_votes, avg_votes, correct_rate)
 
     entry = {
-        "date": str(datetime.date.today()),
+        "date": clock.today_str(),
         "question": question,
         "format": format_name,
         "is_quiz": is_quiz,
@@ -301,53 +317,87 @@ def record_text_post(format_name, title, extra_channel_results=None, message_id=
     back later (see that module) and fill views/forwards/reward_score in
     on this same entry via apply_harvested_engagement — so metrics=None
     here means "not known yet", not "will never be known", whenever the
-    userbot harvester is set up."""
-    analytics = load_json(ANALYTICS_PATH, [])
-    analytics.append({
-        "date": str(datetime.date.today()),
-        "question": title,
-        "format": format_name,
-        "is_quiz": None,
-        "vote_count": None,
-        "rolling_avg_votes_before_this_post": None,
-        "correct_rate": None,
-        "reward_score": None,
-        "experiment_id": None,
-        "variant_label": None,
-        "extra_channel_delivery": _summarize_delivery(extra_channel_results),
-        "message_id": message_id,
-        "views": None,
-        "forwards": None,
-    })
-    save_json(ANALYTICS_PATH, analytics)
+    userbot harvester is set up.
+
+    Never raises: this is called right after a real send has already
+    succeeded — a bookkeeping failure here must not be treated the same
+    as the publish itself failing. Bug fix (#32): unlike embeddings.
+    record_post_embedding (which already made and kept this exact
+    promise, wrapped in its own try/except), this had no such guard —
+    an exception here (most plausibly memory.save_json hitting a disk
+    issue) used to propagate all the way up to main()'s top-level handler,
+    which would then tell the admin "the run failed and no post was
+    published" — false in exactly this scenario, since the post had
+    already gone out; only the bookkeeping failed afterward.
+    """
+    try:
+        analytics = load_json(ANALYTICS_PATH, [])
+        analytics.append({
+            "date": clock.today_str(),
+            "question": title,
+            "format": format_name,
+            "is_quiz": None,
+            "vote_count": None,
+            "rolling_avg_votes_before_this_post": None,
+            "correct_rate": None,
+            "reward_score": None,
+            "experiment_id": None,
+            "variant_label": None,
+            "extra_channel_delivery": _summarize_delivery(extra_channel_results),
+            "message_id": message_id,
+            "views": None,
+            "forwards": None,
+        })
+        save_json(ANALYTICS_PATH, analytics)
+    except Exception as exc:  # noqa: BLE001 — see docstring: must never look like the publish failed
+        print(f"analytics.record_text_post: failed to record analytics for an already-published "
+              f"post ({exc}) — the post itself is fine, only this bookkeeping was lost.")
 
 
 def recent_scored_count(analytics=None, limit=10):
-    """How many of the last `limit` scored posts (any format, matching the
-    same window recent_score_summary uses) actually have a reward_score —
-    used by weekly_strategy.py to decide whether there's enough real
-    signal yet to let it reshape format_schedule.json. Replaces the old
-    gate on feedback.json's entry count now that schedule weighting reads
-    analytics.json directly instead of going through strategy.json's
-    best_formats (see schedule_builder.py's module docstring)."""
+    """How many of the last `limit` scored posts overall (any format) have
+    a reward_score — used by weekly_strategy.py as a simple "is there
+    enough total signal yet" gate before it lets itself reshape
+    format_schedule.json. This is deliberately a single pooled-across-
+    formats count (a proxy for "has this channel been running long
+    enough to have SOME data"), unlike recent_score_summary below, which
+    (after bug #81's fix) gives each format its own separate window —
+    the two answer different questions on purpose and are no longer the
+    same window."""
     analytics = analytics if analytics is not None else load_json(ANALYTICS_PATH, [])
     return len([e for e in analytics if e.get("reward_score") is not None][-limit:])
 
 
 def recent_score_summary(analytics=None, limit=10):
-    """Average reward_score per format over the last `limit` scored posts
-    — used by weekly_strategy.py's admin report AND (as of the schedule-
-    weighting split) directly by schedule_builder.py to reweight the
-    rotation, no LLM call in between. Returns {} if nothing scored yet for
-    any format. Covers every format that has a reward_score, which is
-    quiz/vote_poll always, plus anything engagement_harvest.py has
-    backfilled."""
+    """Average reward_score per format, over each format's own last
+    `limit` scored posts — used by weekly_strategy.py's admin report AND
+    (as of the schedule-weighting split) directly by schedule_builder.py
+    to reweight the rotation, no LLM call in between. Returns {} if
+    nothing scored yet for any format. Covers every format that has a
+    reward_score, which is quiz/vote_poll always, plus anything
+    engagement_harvest.py has backfilled.
+
+    Bug fix (#81): this used to take the last `limit` scored entries
+    OVERALL — across every format combined — and group THOSE by format.
+    That meant a format scored less often or less recently than others
+    could be crowded out of the window entirely and vanish from the
+    result, even with a long, strong track record of its own — and
+    schedule_builder.format_weight treats a format missing from this
+    dict identically to one with zero data at all (DEFAULT_WEIGHT).
+    Verified this was a real, reproducible gap: 12 historical
+    micro_scene entries averaging a strong score, followed by 10 more
+    recent quiz entries, used to make micro_scene disappear from the
+    summary completely with the default limit=10. Now takes the last
+    `limit` scored entries for EACH format independently, so one
+    format's recent activity can no longer crowd another out.
+    """
     analytics = analytics if analytics is not None else load_json(ANALYTICS_PATH, [])
-    scored = [e for e in analytics if e.get("reward_score") is not None][-limit:]
-    by_format = {}
-    for e in scored:
-        by_format.setdefault(e["format"], []).append(e["reward_score"])
+    scores_by_format = {}
+    for e in analytics:
+        if e.get("reward_score") is None:
+            continue
+        scores_by_format.setdefault(e["format"], []).append(e["reward_score"])
     return {
-        fmt: round(sum(scores) / len(scores), 3)
-        for fmt, scores in by_format.items()
+        fmt: round(sum(scores[-limit:]) / len(scores[-limit:]), 3)
+        for fmt, scores in scores_by_format.items()
     }

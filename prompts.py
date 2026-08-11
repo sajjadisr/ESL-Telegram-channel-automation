@@ -1,6 +1,8 @@
 import datetime
 
-from config import FEEDBACK_WINDOW_WEEKS
+import clock
+
+from config import FEEDBACK_WINDOW_WEEKS, CHANNEL_DISPLAY_NAME
 from text_utils import strip_spoilers_for_context
 #
 # Design source: the inenglish-telegram-content skill (SKILL.md + references).
@@ -43,7 +45,7 @@ IMAGE_NEGATIVE = (
 # above: pasted verbatim into every prompt that produces audience-facing
 # voice (generation + poll/quiz), not independently re-worded per builder.
 PERSONA = (
-    "تو یک معلم زبان انگلیسی حرفه‌ای و مدیر محتوای کانال تلگرامی @InEnglish هستی — "
+    f"تو یک معلم زبان انگلیسی حرفه‌ای و مدیر محتوای کانال تلگرامی {CHANNEL_DISPLAY_NAME} هستی — "
     "آموزش انگلیسی به فارسی‌زبانان مبتدی (سطح A1–A2)."
 )
 
@@ -151,6 +153,7 @@ FORMATS = {
         "needs_image": False,
         "needs_poll": None,
         "use_tiers": False,
+        "topic_is_lexical_item": False,  # reviews a whole list of past titles, not one item
         "guidance": (
             "لیست موضوعات هفته‌های اخیر (پایین اومده) رو به یه پست کوتاه و گرم تبدیل کن — «این چند هفته با هم "
             "چی یاد گرفتیم» — نه یه لیست خشک، با یه جمله‌ی تشویقی در پایان."
@@ -186,6 +189,21 @@ FORMATS = {
         "needs_image": False,
         "needs_poll": None,
         "use_tiers": False,
+        # Bug fix (#34): this format's "topic" (reader.py builds it as
+        # "<story title> — قسمت N") is a compound label for a story
+        # installment, not a discrete vocabulary/grammar item — and its
+        # own guidance below explicitly asks the model to RETELL the
+        # source event in its own simple words, never to invent new
+        # events OR to reproduce the source verbatim. Before this fix,
+        # build_generation_prompt's TARGET_SALIENCE block (bold the exact
+        # topic phrase the first time it appears) and its matching
+        # REVIEW_RULES check were applied here anyway, demanding
+        # something structurally at odds with "retell in your own
+        # words": the compound title string was never going to appear
+        # verbatim in a simple retelling, so the review check could only
+        # ever fail, wasting a regeneration attempt (and REVIEW_MODEL
+        # quota — see ai.py #90) every single time this format runs.
+        "topic_is_lexical_item": False,
         "guidance": (
             "این یه قسمت از یه داستانِ از قبل نوشته‌شده‌ست — متن اصلیِ همین قسمت پایین‌تر (توی «توضیح "
             "تکمیلی») اومده. کارت اینه که همون رویداد رو با انگلیسیِ ساده‌ی سطح A1–A2 دوباره روایت کنی، نه "
@@ -200,6 +218,13 @@ FORMATS = {
         "needs_image": False,
         "needs_poll": None,
         "use_tiers": True,
+        # Bug fix (#34): same reasoning as reader_installment above — this
+        # format's "topic" is a full news headline (news.py sets it to
+        # news_item["title"]), and the guidance below explicitly says
+        # "with your own sentences, not by copying the source's
+        # sentences" — directly at odds with the salience block's demand
+        # that the exact topic phrase appear verbatim once.
+        "topic_is_lexical_item": False,
         "guidance": (
             "یه خبر واقعی و تازه (خلاصه‌ش پایین‌تر توی «توضیح تکمیلی» اومده) رو با انگلیسیِ ساده‌ی سطح "
             "A1–A2 دوباره تعریف کن — با جمله‌های خودت، نه با کپی‌کردن جمله‌های منبع. این خبره، پس لازم نیست "
@@ -348,11 +373,17 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
 
     tier_block = TIER_INSTRUCTIONS if fmt["use_tiers"] else ""
 
-    # Both rules are about a specific target item — progress_recap reviews a
-    # whole list of past titles, not one item, so neither applies there.
+    # Bug fix (#34): this used to be `if format_name != "progress_recap":`,
+    # a hardcoded single-format exception. reader_installment and
+    # news_relevel need the exact same exception (see their FORMATS
+    # entries' topic_is_lexical_item comments) but were never given it —
+    # driven by the FORMATS-dict flag now instead of a format-name
+    # string check, matching this codebase's own stated design principle
+    # (topic_selection._eligible's docstring) that adding a new format
+    # should never mean "add another hardcoded branch here".
     salience_block = ""
     single_item_block = ""
-    if format_name != "progress_recap":
+    if fmt.get("topic_is_lexical_item", True):
         salience_block = TARGET_SALIENCE.format(topic_text=topic["topic"])
         single_item_block = SINGLE_ITEM_FOCUS
 
@@ -442,10 +473,10 @@ REVIEW_RULES = [
      "این متن عیناً توی ایتا و بله هم منتشر می‌شه. آیا جایی از متن به یه قابلیت اشاره می‌کنه که معلوم نیست "
      "همه‌جا وجود داشته باشه — مثل «توی کامنت‌ها بگو»، «زیر پست بنویس»، «ریپلای کن»، «ری‌اکت بده»؟ اگه هست، "
      "رد کن (ok: false)."),
-    (lambda fmt: fmt is not FORMATS.get("progress_recap"),
+    (lambda fmt: fmt.get("topic_is_lexical_item", True),
      "آیا «{topic_text}» (یا معادل انگلیسیش) دقیقاً یک بار با تگ <b>...</b> پررنگ شده؟ اگه اصلاً پررنگ نشده، "
      "یا بیشتر از یک بار پررنگ شده، رد کن."),
-    (lambda fmt: fmt is not FORMATS.get("progress_recap"),
+    (lambda fmt: fmt.get("topic_is_lexical_item", True),
      "آیا توی همین پست چند تا عضو دیگه از همون دسته (مثلاً چند تا رنگ، چند تا عضو خانواده، چند تا روز هفته) "
      "هم پشت سر هم معرفی شدن؟ اگه آره، رد کن — این پست باید فقط روی یک مورد تمرکز کنه."),
     # idiom_proverb_bridge's one format-specific check (§4) — the concrete
@@ -465,7 +496,7 @@ def build_review_prompt(content, format_name, topic_text=None):
         f"{_persian_numeral(i + 1)}. {text.format(topic_text=topic_text)}"
         for i, text in enumerate(applicable)
     )
-    return f"""متن زیر یک پست کانال تلگرامی آموزش انگلیسی مبتدی‌محور (@InEnglish) است. آن را از نظر موارد زیر بررسی کن:
+    return f"""متن زیر یک پست کانال تلگرامی آموزش انگلیسی مبتدی‌محور ({CHANNEL_DISPLAY_NAME}) است. آن را از نظر موارد زیر بررسی کن:
 {checklist}
 
 متن:
@@ -548,7 +579,7 @@ def filter_recent_feedback(feedback_list, window_weeks=FEEDBACK_WINDOW_WEEKS):
     """Feedback entries from the last `window_weeks` weeks. Shared by the
     strategy prompt (below) and by weekly_strategy.py's decision on whether
     there's enough real signal yet to let engagement reshape the schedule."""
-    cutoff = datetime.date.today() - datetime.timedelta(weeks=window_weeks)
+    cutoff = clock.today() - datetime.timedelta(weeks=window_weeks)
     recent = []
     for entry in feedback_list:
         try:
@@ -614,7 +645,7 @@ def build_topic_generation_prompt(existing_topics, count, categories):
     itself, on top of the code-side dedup check that runs after this."""
     existing_text = "\n".join(f"- {t}" for t in existing_topics) or "(هنوز چیزی نیست)"
     categories_text = "، ".join(categories)
-    return f"""تو داری موضوعات جدید برای کانال تلگرامی آموزش انگلیسی مبتدی‌محور @InEnglish (سطح A1-A2) پیشنهاد می‌دی. این کانال قبلاً موضوعات زیر رو پوشش داده یا برای پوشش برنامه‌ریزی کرده — {count} موضوع کاملاً جدید و متفاوت پیشنهاد بده که هیچ‌کدوم از این‌ها نباشه و حتی خیلی شبیهشون هم نباشه:
+    return f"""تو داری موضوعات جدید برای کانال تلگرامی آموزش انگلیسی مبتدی‌محور {CHANNEL_DISPLAY_NAME} (سطح A1-A2) پیشنهاد می‌دی. این کانال قبلاً موضوعات زیر رو پوشش داده یا برای پوشش برنامه‌ریزی کرده — {count} موضوع کاملاً جدید و متفاوت پیشنهاد بده که هیچ‌کدوم از این‌ها نباشه و حتی خیلی شبیهشون هم نباشه:
 
 {existing_text}
 

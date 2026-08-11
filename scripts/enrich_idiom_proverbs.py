@@ -10,20 +10,37 @@ replacement: it can run against any number of Idioms topics, is re-runnable
 safely, and every pairing it publishes carries a source citation instead of
 resting on one session's confidence.
 
-Safe to re-run any time — skips topics that are already tagged
-has_fa_equivalent OR fa_equivalent_needs_review, so re-running only ever
-processes genuinely new topics (e.g. ones topic_generation.py's self-refill
-added since the last run). That's what makes this "keep finding ideas",
-not "hardcode once and stop": the pool grows automatically as topics.json
-grows.
+Usage: python scripts/enrich_idiom_proverbs.py [--recheck-queued]
+
+Safe to re-run any time — by default, skips topics that already carry a
+SOURCED has_fa_equivalent (a real fa_equivalent_source, meaning THIS script
+already verified them) or are already queued for review, so a normal run
+only ever processes genuinely new topics (e.g. ones topic_generation.py's
+self-refill added since the last run).
+
+Bug fix (#54): this used to skip anything tagged has_fa_equivalent at all —
+which included the original 5 hand-picked, explicitly-UNVERIFIED pairings
+from CONTENT_PIPELINE_CHANGES.md (they were shipped already carrying that
+tag). Since this script's whole stated purpose is to REPLACE that
+unverified guesswork, but its own filter guaranteed those exact 5 entries
+could never be reached, the thing this script was built to fix stayed
+unfixed no matter how many times it ran. Now distinguishes "verified by
+this script" (has_fa_equivalent AND a real fa_equivalent_source) from
+"tagged has_fa_equivalent but never actually sourced" — the latter is
+treated as a candidate again, so the original 5 finally get the same
+grounded check every other idiom gets.
+
+Bug fix (#55): fa_equivalent_needs_review used to be a permanent
+exclusion — once queued, a topic could never be re-attempted even if a
+later search might turn up a better source. Pass --recheck-queued to
+also re-attempt those (not on by default, so a normal run doesn't
+re-spend quota on topics unlikely to have changed since the last check).
 
 High-confidence, sourced results get written back with has_fa_equivalent +
 fa_equivalent + fa_equivalent_source, making them eligible for
 idiom_proverb_bridge (topic_selection._eligible's required_tags check).
 Below-threshold results are tagged fa_equivalent_needs_review instead —
 visible to a human in the data file, never silently eligible.
-
-Usage: python scripts/enrich_idiom_proverbs.py
 """
 
 import sys
@@ -36,14 +53,22 @@ from memory import load_json, save_json
 import research
 
 
+def _is_candidate(topic, recheck_queued):
+    tags = topic.get("tags", [])
+    if "has_fa_equivalent" in tags:
+        # Bug fix (#54): only skip if it's actually SOURCED (verified by
+        # this script, not just hand-asserted) — see module docstring.
+        return not (topic.get("fa_equivalent_source") or "").strip()
+    if "fa_equivalent_needs_review" in tags:
+        return recheck_queued  # bug fix (#55): opt-in re-attempt
+    return True
+
+
 def main():
+    recheck_queued = "--recheck-queued" in sys.argv[1:]
     topics = load_json(TOPICS_PATH, [])
     idioms = [t for t in topics if t.get("category") == "Idioms"]
-    candidates = [
-        t for t in idioms
-        if "has_fa_equivalent" not in t.get("tags", [])
-        and "fa_equivalent_needs_review" not in t.get("tags", [])
-    ]
+    candidates = [t for t in idioms if _is_candidate(t, recheck_queued)]
 
     if not candidates:
         print("Nothing to do — every Idioms topic already has a verified equivalent, "

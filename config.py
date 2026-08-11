@@ -1,8 +1,48 @@
 import os
 
-TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-TELEGRAM_CHANNEL_ID = os.environ["TELEGRAM_CHANNEL_ID"]
-GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+
+def require(name):
+    """Fetch a required environment variable, or raise a clear, actionable
+    error naming exactly what's missing.
+
+    Bug fix: TELEGRAM_BOT_TOKEN / TELEGRAM_CHANNEL_ID / GEMINI_API_KEY used
+    to be read with a bare os.environ[...] at import time. That meant ANY
+    script that imports this module -- including ones that only ever need
+    ONE of the three, like scripts/check_daily_completion.py (which only
+    sends an admin alert; it never touches Gemini or a channel id) --
+    would crash with an opaque KeyError if any of the *other* two happened
+    to be unset or misnamed as a GitHub secret. The three constants below
+    are now read permissively (empty string if unset) and validated with
+    this function lazily, right where each is actually first needed:
+    ai.py validates GEMINI_API_KEY when it builds its Gemini client(s),
+    and telegram_bot.py validates TELEGRAM_BOT_TOKEN / the effective
+    chat_id before its first real API call.
+    """
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(
+            f"Missing required environment variable {name!r}. Set it as a "
+            f"GitHub Secret (Settings -> Secrets and variables -> Actions) "
+            f"or export it in your shell before running this script."
+        )
+    return value
+
+
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "").strip()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+
+# --- Timezone -----------------------------------------------------------
+# This is a Persian-language channel for a Tehran-based audience — every
+# cron time in .github/workflows/ has a comment translating it to Tehran
+# local time — but GitHub Actions cron schedules are always UTC, and until
+# this fix, every "what's today's date" computation in this codebase used
+# naive datetime.date.today(), which resolves in the RUNNER's timezone
+# (UTC), not Tehran's. See clock.py for what this fixes and why a fixed
+# offset (rather than zoneinfo/pytz) is enough: Iran has not observed
+# daylight saving time since 2022, so this doesn't need to change with
+# the season. If Iran ever resumes DST, update this value.
+TEHRAN_UTC_OFFSET_HOURS = 3.5
 
 # Optional second Gemini API key, ideally from a DIFFERENT Google account/
 # project than GEMINI_API_KEY. Google has repeatedly, without warning,
@@ -48,6 +88,31 @@ CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
 # secret, those messages are just printed to the workflow log instead —
 # open the Actions tab and read the run's log to copy them from there.
 TELEGRAM_ADMIN_CHAT_ID = os.environ.get("TELEGRAM_ADMIN_CHAT_ID", "")
+
+# --- Channel's own public identity, for self-referential prompts/messages --
+# TELEGRAM_CHANNEL_ID above is what the Bot API needs to actually SEND to —
+# it can be a numeric chat id (e.g. "-1001234567890"), which isn't a
+# human-readable handle. CHANNEL_DISPLAY_NAME is what the model is told it
+# manages (prompts.PERSONA, build_review_prompt, build_topic_prompt) and
+# what real "come follow us" text (channels.py's vote-poll fallback,
+# scripts/send_onboarding_message.py, scripts/send_cross_promo.py) actually
+# tells subscribers to go find.
+#
+# Bug fix: these two used to be completely unrelated. The literal string
+# "@InEnglish" was hardcoded directly into seven separate places across the
+# codebase, with zero connection to TELEGRAM_CHANNEL_ID. Anyone deploying
+# this under a different channel name (the entire point of
+# TELEGRAM_CHANNEL_ID being configurable) got every self-referential
+# generation prompt, and every real message actually sent to subscribers,
+# pointing at someone else's channel. Now there's one source of truth:
+# defaults to TELEGRAM_CHANNEL_ID itself when that's already a "@handle"
+# (the common case); if TELEGRAM_CHANNEL_ID is a numeric chat id instead,
+# set CHANNEL_DISPLAY_NAME explicitly. If neither is set, this falls back
+# to an obviously-fake placeholder rather than silently pointing at the
+# original author's real channel.
+CHANNEL_DISPLAY_NAME = os.environ.get("CHANNEL_DISPLAY_NAME", "").strip() or (
+    TELEGRAM_CHANNEL_ID if TELEGRAM_CHANNEL_ID.startswith("@") else "@your_channel"
+)
 
 # --- MTProto userbot session (engagement_harvest.py) ------------------------
 # Optional. Closes the views/forwards measurement gap analytics.py's own
@@ -105,12 +170,16 @@ EMBEDDINGS_JSONL_PATH = "data/post_embeddings.jsonl"
 # Eitaayar (eitaayar.ir) bot token for your Eitaa channel.
 EITAA_TOKEN = os.environ.get("EITAA_TOKEN", "")
 # Eitaa channel ID WITHOUT the leading @ (Eitaayar's own convention).
-EITAA_CHANNEL_ID = os.environ.get("EITAA_CHANNEL_ID", "inEnglish")
+# Bug fix: this used to default to the literal "inEnglish", independent of
+# (and inconsistently-cased with) CHANNEL_DISPLAY_NAME/BALE_CHAT_ID below.
+# Now derived from the one shared CHANNEL_DISPLAY_NAME so the three
+# platforms can't silently drift apart.
+EITAA_CHANNEL_ID = os.environ.get("EITAA_CHANNEL_ID", "").strip() or CHANNEL_DISPLAY_NAME.lstrip("@")
 
 # Bale bot token, from Bale's own @Bot_Father.
 BALE_BOT_TOKEN = os.environ.get("BALE_BOT_TOKEN", "")
 # Bale chat ID — like Telegram, "@channelusername" works directly.
-BALE_CHAT_ID = os.environ.get("BALE_CHAT_ID", "@inEnglish")
+BALE_CHAT_ID = os.environ.get("BALE_CHAT_ID", "").strip() or CHANNEL_DISPLAY_NAME
 
 # --- Per-platform message-length limits (Platform-awareness audit) --------
 # text_utils.truncate_html_safe() used to take one shared 4000-char default

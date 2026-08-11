@@ -1,5 +1,7 @@
 import datetime
 
+import clock
+
 from config import FEEDBACK_PATH
 from memory import load_json, save_json
 
@@ -9,7 +11,7 @@ def add_feedback(post_title, notes):
     feedback_list.append({
         "post_title": post_title,
         "notes": notes,
-        "date": str(datetime.date.today()),
+        "date": clock.today_str(),
         "source": "manual",
     })
     save_json(FEEDBACK_PATH, feedback_list)

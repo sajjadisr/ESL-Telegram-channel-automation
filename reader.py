@@ -29,8 +29,13 @@ from config import READER_LIBRARY_PATH, LOW_STORY_WARNING_THRESHOLD
 from memory import load_json
 from database import get_last_published_chunk
 
-# Fast-path cache only — {"story_id": str, "next_chunk_index": int}.
-# Never trusted on its own; see _reconciled_position.
+# Fast-path cache only — {"story_id": str}. Never trusted on its own; see
+# _reconciled_position.
+#
+# Bug fix (#56): this used to also store "next_chunk_index", but nothing
+# ever read that field back — _reconciled_position always recomputes the
+# next index from posts.db (get_last_published_chunk), never from this
+# cache. Removed rather than left as dead, misleadingly-named data.
 READING_KEY = "reader_progress"
 
 
@@ -54,26 +59,54 @@ def _started_ids(library):
 
 def _reconciled_position(memory, library):
     """Returns (story, next_chunk_index), using posts.db as ground truth
-    for progress on whichever story is active. Falls back to picking the
-    next never-started story (in file order) once the active one is done,
-    missing, or there wasn't one yet."""
-    cache = memory.get(READING_KEY, {})
-    story_id = cache.get("story_id")
+    for EVERY story's progress — not just whichever one memory.json's
+    cache happens to name.
 
-    if story_id:
-        story = _story_by_id(library, story_id)
+    Bug fix (#57): the fallback used to only ever find a story that has
+    NEVER been started (via _started_ids' exclusion). If the cache's
+    story_id was ever lost, reset, or simply wrong while a DIFFERENT
+    story was genuinely left partway through, that story became
+    permanently orphaned: not resumable (it wasn't the cached one) and
+    not eligible as "fresh" either (it already has published chunks) —
+    directly contradicting this module's own stated design goal that
+    posts.db, not the cache, is the recoverable ground truth. The cache
+    was only ever consulted as a same-story shortcut; it was never
+    actually used to recover a DIFFERENT story's true progress when the
+    two disagreed. Now falls back to scanning every story's real
+    progress via get_last_published_chunk (not just checking whether
+    it's in the "started" set), and prefers resuming a genuinely partial
+    story over starting a fresh one.
+    """
+    cache = memory.get(READING_KEY, {})
+    cached_story_id = cache.get("story_id")
+
+    if cached_story_id:
+        story = _story_by_id(library, cached_story_id)
         if story is not None:
-            last_chunk = get_last_published_chunk(story_id)
+            last_chunk = get_last_published_chunk(cached_story_id)
             next_index = 0 if last_chunk is None else last_chunk + 1
             if next_index < len(story["chunks"]):
                 return story, next_index
             # Story finished (or the cache pointed past its own length) —
-            # fall through to picking the next one.
+            # fall through to look for something else to read.
 
-    started = _started_ids(library)
+    # The cache is missing, wrong, or points at a finished story — recover
+    # directly from posts.db instead of assuming nothing else is in
+    # progress.
+    never_started = []
     for story in library:
-        if story["id"] not in started:
-            return story, 0
+        last_chunk = get_last_published_chunk(story["id"])
+        if last_chunk is None:
+            never_started.append(story)
+            continue
+        next_index = last_chunk + 1
+        if next_index < len(story["chunks"]):
+            # A genuinely partial story, found independently of the cache
+            # — resume it rather than leaving it stuck.
+            return story, next_index
+
+    if never_started:
+        return never_started[0], 0
 
     return None, None
 
@@ -95,7 +128,7 @@ def get_next_installment(memory):
     chunk_text = story["chunks"][next_index]
     is_final = next_index == len(story["chunks"]) - 1
 
-    memory[READING_KEY] = {"story_id": story["id"], "next_chunk_index": next_index}
+    memory[READING_KEY] = {"story_id": story["id"]}
 
     return story, next_index, chunk_text, is_final
 

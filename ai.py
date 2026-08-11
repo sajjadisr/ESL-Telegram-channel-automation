@@ -79,6 +79,76 @@ _clients = [("primary key", _client)]
 if GEMINI_API_KEY_BACKUP:
     _clients.append(("backup key", genai.Client(api_key=GEMINI_API_KEY_BACKUP)))
 
+
+class _ClientExhausted(Exception):
+    """Internal control-flow signal used by _call_with_fallback below: one
+    client's attempts are used up. `is_auth` tells the caller whether
+    falling through to the next configured client (if any) is worth
+    trying at all."""
+    def __init__(self, exc, is_auth):
+        super().__init__(str(exc))
+        self.exc = exc
+        self.is_auth = is_auth
+
+
+def _try_one_client(label, client_label, client, attempt_fn):
+    for attempt in range(1, MAX_API_ATTEMPTS + 1):
+        try:
+            return attempt_fn(client)
+        except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+            if _is_auth_error(exc):
+                print(f"{label}: auth error on the {client_label} (not retrying this key): {exc}")
+                raise _ClientExhausted(exc, is_auth=True) from exc
+            if attempt < MAX_API_ATTEMPTS:
+                print(f"{label}: call failed (attempt {attempt}/{MAX_API_ATTEMPTS}) on the "
+                      f"{client_label}: {exc}. Retrying...")
+                time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
+                continue
+            print(f"{label}: call failed after {MAX_API_ATTEMPTS} attempts on the {client_label}: {exc}")
+            raise _ClientExhausted(exc, is_auth=False) from exc
+
+
+def _call_with_fallback(label, attempt_fn):
+    """Shared retry-then-maybe-fall-through logic for every Gemini call in
+    this module (draft/review text, grounded search, embeddings, image
+    generation, speech generation).
+
+    `attempt_fn(client)` performs ONE attempt against `client` and returns
+    the result, or raises one of the caught SDK exception types.
+
+    Bug fix (#7/#8): this exact retry loop used to be duplicated five
+    times (_call_model, _call_model_grounded, embed_text,
+    _generate_image_with_model, _generate_speech_with_model), and in
+    every copy, exhausting MAX_API_ATTEMPTS retries on a plain TRANSIENT
+    error (a network blip, quota limit, or 5xx) fell through to the next
+    configured client exactly the same way an auth error did — even
+    though this module's own documentation, and config.py's comment on
+    GEMINI_API_KEY_BACKUP, are explicit that the backup key should be
+    reserved for auth errors specifically ("transient errors on the
+    primary still retry on the primary"). The reasoning: a transient
+    failure usually means Gemini's service (or the network path to it) is
+    having a bad moment for BOTH keys alike, so spending the backup key's
+    separate quota on the same failure doesn't help and wastes it for
+    when it's actually needed. Verified directly: forcing a pure
+    transient 503 on every attempt no longer reaches a configured backup
+    client at all; only an auth-shaped error does.
+    """
+    last_exc = None
+    for client_label, client in _clients:
+        try:
+            return _try_one_client(label, client_label, client, attempt_fn)
+        except _ClientExhausted as signal:
+            last_exc = signal.exc
+            if not signal.is_auth:
+                break  # transient failure exhausted -- per the documented design, stop here
+            continue  # auth error -- worth trying the next configured client, if any
+    if _is_auth_error(last_exc):
+        raise GeminiAuthError(
+            f"{label}: failed with an authentication error on "
+            f"{'every configured key' if len(_clients) > 1 else 'the configured key'}: {last_exc}"
+        ) from last_exc
+    raise last_exc
+
 # Two tiers, used deliberately for different jobs:
 # - DRAFT_MODEL (flash-lite): every DRAFT generation call. Flash-lite has a
 #   much higher free-tier daily quota, and drafting is by far the highest-
@@ -266,36 +336,16 @@ def _call_model(model_name, prompt):
     key — it will fail identically every time, so retrying just burns time
     and clutters the log. Instead it falls through to the next configured
     client (see GEMINI_API_KEY_BACKUP), and only raises GeminiAuthError once
-    every client has failed that way."""
-    last_exc = None
-    for client_label, client in _clients:
-        for attempt in range(1, MAX_API_ATTEMPTS + 1):
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(http_options=_HTTP_OPTIONS),
-                )
-                return (response.text or "").strip()
-            except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
-                last_exc = exc
-                if _is_auth_error(exc):
-                    print(f"Gemini call to {model_name} failed with an auth error on the "
-                          f"{client_label} (not retrying this key): {exc}")
-                    break  # try the next client, if any — see loop below
-                if attempt < MAX_API_ATTEMPTS:
-                    print(f"Gemini call to {model_name} failed (attempt {attempt}/{MAX_API_ATTEMPTS}) "
-                          f"on the {client_label}: {exc}. Retrying...")
-                    time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
-                else:
-                    print(f"Gemini call to {model_name} failed after {MAX_API_ATTEMPTS} attempts "
-                          f"on the {client_label}: {exc}")
-    if _is_auth_error(last_exc):
-        raise GeminiAuthError(
-            f"Gemini call to {model_name} failed with an authentication error on "
-            f"{'every configured key' if len(_clients) > 1 else 'the configured key'}: {last_exc}"
-        ) from last_exc
-    raise last_exc
+    every client has failed that way. A transient error does NOT fall
+    through — see _call_with_fallback's docstring (bug #7/#8)."""
+    def _attempt(client):
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(http_options=_HTTP_OPTIONS),
+        )
+        return (response.text or "").strip()
+    return _call_with_fallback(f"Gemini call to {model_name}", _attempt)
 
 
 def generate_content(prompt):
@@ -340,45 +390,53 @@ def generate_content_smart(prompt):
 
 def _call_model_grounded(model_name, prompt):
     """Same retry/fallback contract as _call_model (transient errors retried
-    with backoff, auth errors fall through to the next configured client),
-    but with the Google Search grounding tool enabled — the model issues
-    real search queries and grounds its answer in what comes back, instead
-    of answering from memory alone. No Groq fallback here (see
+    with backoff, auth errors fall through to the next configured client,
+    transient exhaustion does NOT — see _call_with_fallback), but with the
+    Google Search grounding tool enabled — the model issues real search
+    queries and grounds its answer in what comes back, instead of
+    answering from memory alone. No Groq fallback here (see
     generate_grounded_json's docstring for why) — a grounded call that fails
     on every Gemini client just fails, it doesn't quietly degrade to an
     ungrounded guess from a different provider."""
-    last_exc = None
-    for client_label, client in _clients:
-        for attempt in range(1, MAX_API_ATTEMPTS + 1):
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        tools=[types.Tool(google_search=types.GoogleSearch())],
-                        http_options=_HTTP_OPTIONS,
-                    ),
-                )
-                return (response.text or "").strip()
-            except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
-                last_exc = exc
-                if _is_auth_error(exc):
-                    print(f"Gemini grounded call to {model_name} failed with an auth error on "
-                          f"the {client_label} (not retrying this key): {exc}")
-                    break
-                if attempt < MAX_API_ATTEMPTS:
-                    print(f"Gemini grounded call to {model_name} failed (attempt "
-                          f"{attempt}/{MAX_API_ATTEMPTS}) on the {client_label}: {exc}. Retrying...")
-                    time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
-                else:
-                    print(f"Gemini grounded call to {model_name} failed after "
-                          f"{MAX_API_ATTEMPTS} attempts on the {client_label}: {exc}")
-    if _is_auth_error(last_exc):
-        raise GeminiAuthError(
-            f"Gemini grounded call to {model_name} failed with an authentication error on "
-            f"{'every configured key' if len(_clients) > 1 else 'the configured key'}: {last_exc}"
-        ) from last_exc
-    raise last_exc
+    def _attempt(client):
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                http_options=_HTTP_OPTIONS,
+            ),
+        )
+        return (response.text or "").strip()
+    return _call_with_fallback(f"Gemini grounded call to {model_name}", _attempt)
+
+
+def _extract_json_payload(raw):
+    """Parse a JSON object/array out of a model response, tolerating more
+    than just markdown code fences.
+
+    Bug fix (#12): this used to be two blind .replace() calls stripping
+    ```json / ``` markers and nothing else — a response wrapped in ANY
+    other preamble or postamble (e.g. "Here's the poll:\\n{...}", or a
+    trailing sentence after the closing brace) failed to parse even
+    though the actual JSON payload inside it was perfectly valid and
+    easy to recover. Now: try the cheap fence-strip first (handles the
+    common case with no extra work), and if that alone doesn't parse,
+    fall back to locating the outermost {...} or [...] span in the
+    response and parsing just that span.
+    """
+    cleaned = raw.replace("```json", "").replace("```", "").strip()
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+    starts = [i for i in (cleaned.find("{"), cleaned.find("[")) if i != -1]
+    ends = [i for i in (cleaned.rfind("}"), cleaned.rfind("]")) if i != -1]
+    if starts and ends:
+        start, end = min(starts), max(ends)
+        if end > start:
+            return json.loads(cleaned[start:end + 1])  # lets JSONDecodeError propagate if this also fails
+    raise json.JSONDecodeError("No JSON object/array found in response", cleaned, 0)
 
 
 def generate_grounded_json(prompt, fallback=None):
@@ -386,23 +444,31 @@ def generate_grounded_json(prompt, fallback=None):
     _call_model_grounded) — for claims that need checking against the real
     world, not just fluent generation (e.g. research.py's "is this actually
     a well-known Persian proverb" lookup). Returns `fallback` on any
-    failure (API error after retries, or an unparseable response) — callers
-    must treat that exactly like "couldn't verify this one right now, try
-    again later / skip it", never publish something on the strength of a
-    fallback value. Deliberately no Groq fallback and no `strict=True`
-    option like generate_json: a caller that needs unverified content badly
-    enough to accept an ungrounded guess should call generate_json
-    directly, not silently get one back from a function named for the
-    thing it just failed to do."""
+    EXPECTED failure (API error after retries, or an unparseable response)
+    — callers must treat that exactly like "couldn't verify this one right
+    now, try again later / skip it", never publish something on the
+    strength of a fallback value. Deliberately no Groq fallback and no
+    `strict=True` option like generate_json: a caller that needs unverified
+    content badly enough to accept an ungrounded guess should call
+    generate_json directly, not silently get one back from a function named
+    for the thing it just failed to do.
+
+    Bug fix (#9's reasoning applied here too): this used to catch bare
+    Exception around the model call, which would silently turn a genuine
+    bug in this code into "using fallback" exactly like an expected API
+    failure. Now narrowed to the specific exception types _call_model_
+    grounded can actually raise for an expected failure; anything else
+    propagates as the bug it is.
+    """
     try:
         raw = _call_model_grounded(GROUNDING_MODEL, prompt)
-    except Exception as exc:  # noqa: BLE001 — any failure here just means "couldn't verify"
+    except (GeminiAuthError, genai_errors.ServerError, genai_errors.ClientError,
+            genai_errors.APIError) as exc:
         print("generate_grounded_json: model call failed, using fallback:", exc)
         return fallback
 
-    cleaned = raw.replace("```json", "").replace("```", "").strip()
     try:
-        return json.loads(cleaned)
+        return _extract_json_payload(raw)
     except json.JSONDecodeError:
         print("generate_grounded_json: response was not valid JSON, using fallback. Raw response:",
               raw[:300])
@@ -412,47 +478,46 @@ def generate_grounded_json(prompt, fallback=None):
 def embed_text(text):
     """Returns a unit-ish list[float] embedding vector for `text` (see
     EMBEDDING_MODEL/EMBEDDING_DIMENSIONALITY above), or None if every
-    configured client failed after retries.
+    configured client failed after retries, or if a client responded but
+    produced no embedding values (a soft failure, not an API error).
 
     Callers (embeddings.py's semantic-dedup check) MUST treat None as "skip
     the semantic check this time" — never as a reason to block or crash a
     run. A transient embedding-API hiccup degrading dedup back to the
     existing keyword-based check for one post is an acceptable trade;
-    blocking publishing on it would not be."""
-    task_type = "SEMANTIC_SIMILARITY"
-    for client_label, client in _clients:
-        for attempt in range(1, MAX_API_ATTEMPTS + 1):
-            try:
-                response = client.models.embed_content(
-                    model=EMBEDDING_MODEL,
-                    contents=text,
-                    config=types.EmbedContentConfig(
-                        output_dimensionality=EMBEDDING_DIMENSIONALITY,
-                        task_type=task_type,
-                    ),
-                )
-                embeddings = response.embeddings or []
-                if not embeddings or not embeddings[0].values:
-                    print("embed_text: response had no embedding values.")
-                    return None
-                return list(embeddings[0].values)
-            except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
-                if _is_auth_error(exc):
-                    print(f"embed_text: auth error on the {client_label} (not retrying this "
-                          f"key): {exc}")
-                    break
-                if attempt < MAX_API_ATTEMPTS:
-                    print(f"embed_text: call failed (attempt {attempt}/{MAX_API_ATTEMPTS}) on "
-                          f"the {client_label}: {exc}. Retrying...")
-                    time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
-                else:
-                    print(f"embed_text: call failed after {MAX_API_ATTEMPTS} attempts on the "
-                          f"{client_label}: {exc}")
-            except Exception as exc:  # noqa: BLE001 — never let a dedup check crash a run
-                print(f"embed_text: unexpected error on the {client_label}: {exc}")
-                break
-    print("embed_text: every configured client failed; skipping (dedup degrades gracefully).")
-    return None
+    blocking publishing on it would not be.
+
+    Bug fix (#10): this used to have its own extra bare `except Exception`
+    around the whole attempt, on top of the specific genai_errors catch —
+    meaning an unexpected bug (not just a real API failure) would silently
+    break out of the retry loop and move to the next client, or fall all
+    the way through to "skipping" with no real visibility into what
+    actually happened. That extra catch is gone; only the same specific
+    exception types every other Gemini call in this module treats as an
+    expected, retryable/fallback-able failure are caught here now (via
+    _call_with_fallback) — anything else is a bug and surfaces as one.
+    """
+    def _attempt(client):
+        response = client.models.embed_content(
+            model=EMBEDDING_MODEL,
+            contents=text,
+            config=types.EmbedContentConfig(
+                output_dimensionality=EMBEDDING_DIMENSIONALITY,
+                task_type="SEMANTIC_SIMILARITY",
+            ),
+        )
+        embeddings = response.embeddings or []
+        if not embeddings or not embeddings[0].values:
+            print("embed_text: response had no embedding values.")
+            return None
+        return list(embeddings[0].values)
+    try:
+        return _call_with_fallback("embed_text", _attempt)
+    except (GeminiAuthError, genai_errors.ServerError, genai_errors.ClientError,
+            genai_errors.APIError) as exc:
+        print(f"embed_text: every configured client failed ({exc}); skipping "
+              f"(dedup degrades gracefully).")
+        return None
 
 
 def _generate_image_with_model(model_name, prompt):
@@ -462,44 +527,23 @@ def _generate_image_with_model(model_name, prompt):
     safety block — not an API error). Raises after MAX_API_ATTEMPTS on a
     hard API failure; generate_image below decides whether to try the
     fallback model."""
-    last_exc = None
-    for client_label, client in _clients:
-        for attempt in range(1, MAX_API_ATTEMPTS + 1):
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE"],
-                        image_config=types.ImageConfig(aspect_ratio="1:1"),
-                        http_options=_HTTP_OPTIONS,
-                    ),
-                )
-                for part in response.parts or []:
-                    if getattr(part, "inline_data", None) is not None:
-                        return part.inline_data.data
-                print(f"generate_image ({model_name}): responded with no image part "
-                      f"(likely a safety block).")
-                return None
-            except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
-                last_exc = exc
-                if _is_auth_error(exc):
-                    print(f"Gemini image call to {model_name} failed with an auth error on "
-                          f"the {client_label} (not retrying this key): {exc}")
-                    break
-                if attempt < MAX_API_ATTEMPTS:
-                    print(f"Gemini image call to {model_name} failed (attempt "
-                          f"{attempt}/{MAX_API_ATTEMPTS}) on the {client_label}: {exc}. Retrying...")
-                    time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
-                else:
-                    print(f"Gemini image call to {model_name} failed after "
-                          f"{MAX_API_ATTEMPTS} attempts on the {client_label}: {exc}")
-    if _is_auth_error(last_exc):
-        raise GeminiAuthError(
-            f"Gemini image call to {model_name} failed with an authentication error on "
-            f"{'every configured key' if len(_clients) > 1 else 'the configured key'}: {last_exc}"
-        ) from last_exc
-    raise last_exc
+    def _attempt(client):
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                image_config=types.ImageConfig(aspect_ratio="1:1"),
+                http_options=_HTTP_OPTIONS,
+            ),
+        )
+        for part in response.parts or []:
+            if getattr(part, "inline_data", None) is not None:
+                return part.inline_data.data
+        print(f"generate_image ({model_name}): responded with no image part "
+              f"(likely a safety block).")
+        return None
+    return _call_with_fallback(f"Gemini image call to {model_name}", _attempt)
 
 
 def generate_image(prompt):
@@ -552,6 +596,9 @@ def generate_image(prompt):
     return _call_cloudflare_image(prompt)
 
 
+_tts_voice_reminder_printed = False
+
+
 def _generate_speech_with_model(model_name, text):
     """One model's worth of retried attempts (same retry-with-backoff
     convention as _call_model / _generate_image_with_model). Returns raw
@@ -564,50 +611,49 @@ def _generate_speech_with_model(model_name, text):
     text tokens instead of audio tokens on a small percentage of
     requests, surfacing as a 500 ServerError — already covered by the
     same retry-with-backoff loop every other call in this file uses, no
-    special-casing needed here."""
-    last_exc = None
-    for client_label, client in _clients:
-        for attempt in range(1, MAX_API_ATTEMPTS + 1):
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=text,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["AUDIO"],
-                        speech_config=types.SpeechConfig(
-                            voice_config=types.VoiceConfig(
-                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                    voice_name=TTS_VOICE_NAME,
-                                )
-                            )
-                        ),
-                        http_options=_HTTP_OPTIONS,
-                    ),
-                )
-                for part in response.parts or []:
-                    if getattr(part, "inline_data", None) is not None:
-                        return part.inline_data.data
-                print(f"generate_speech ({model_name}): responded with no audio part.")
-                return None
-            except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
-                last_exc = exc
-                if _is_auth_error(exc):
-                    print(f"Gemini speech call to {model_name} failed with an auth error on "
-                          f"the {client_label} (not retrying this key): {exc}")
-                    break
-                if attempt < MAX_API_ATTEMPTS:
-                    print(f"Gemini speech call to {model_name} failed (attempt "
-                          f"{attempt}/{MAX_API_ATTEMPTS}) on the {client_label}: {exc}. Retrying...")
-                    time.sleep(_RETRY_BASE_DELAY_SECONDS * attempt)
-                else:
-                    print(f"Gemini speech call to {model_name} failed after "
-                          f"{MAX_API_ATTEMPTS} attempts on the {client_label}: {exc}")
-    if _is_auth_error(last_exc):
-        raise GeminiAuthError(
-            f"Gemini speech call to {model_name} failed with an authentication error on "
-            f"{'every configured key' if len(_clients) > 1 else 'the configured key'}: {last_exc}"
-        ) from last_exc
-    raise last_exc
+    special-casing needed here.
+
+    Bug fix (#91): TTS_VOICE_NAME was picked by matching a one-word
+    personality label ("easy-going"), never confirmed by anyone actually
+    listening to it, and none of Gemini's prebuilt voices are
+    language-tagged for Persian even though this channel's content mixes
+    English and Persian in one pass. That can't be fixed from here (it
+    needs a human to actually listen), so instead of shipping the
+    uncertainty silently, this prints a one-time-per-process reminder the
+    first time speech generation actually runs, so it stays visible in
+    every run's log instead of only in a code comment nobody re-reads.
+    """
+    global _tts_voice_reminder_printed
+    if not _tts_voice_reminder_printed:
+        print(f"generate_speech: using voice '{TTS_VOICE_NAME}' — chosen by personality-label "
+              f"match, not confirmed by listening to it or against Persian pronunciation "
+              f"quality specifically. Worth an actual listen in AI Studio's Voice Library "
+              f"(aistudio.google.com/generate-speech) if voice_note output quality is ever in "
+              f"question.")
+        _tts_voice_reminder_printed = True
+
+    def _attempt(client):
+        response = client.models.generate_content(
+            model=model_name,
+            contents=text,
+            config=types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                            voice_name=TTS_VOICE_NAME,
+                        )
+                    )
+                ),
+                http_options=_HTTP_OPTIONS,
+            ),
+        )
+        for part in response.parts or []:
+            if getattr(part, "inline_data", None) is not None:
+                return part.inline_data.data
+        print(f"generate_speech ({model_name}): responded with no audio part.")
+        return None
+    return _call_with_fallback(f"Gemini speech call to {model_name}", _attempt)
 
 
 def generate_speech(text):
@@ -659,6 +705,14 @@ def generate_speech(text):
 # templates (🟢🟡🔴🎬☕🍳⏰🤔👇 etc). Anything outside these ranges is almost
 # certainly language-leakage from the model (e.g. a stray Hangul/CJK/Cyrillic
 # character dropped mid-sentence) rather than intentional content.
+#
+# Bug fix (#11): this used to omit the Arrows block (U+2190-21FF) and
+# Miscellaneous Symbols and Arrows (U+2B00-2BFF, which includes the solid
+# arrow emoji and the star "⭐"). Verified directly: a plain "→" — a
+# completely natural way to show a grammar transformation, e.g.
+# "I do → I don't", exactly the kind of thing a grammar/spot_mistake post
+# would use — used to be flagged as "stray" and silently deleted from
+# real published content by generate_reviewed_text's cleanup step.
 _ALLOWED_CHARS_PATTERN = re.compile(
     "[^\u0000-\u024F"      # Basic Latin, Latin-1 Supplement, Latin Extended-A/B
     "\u0600-\u06FF"        # Arabic block (covers Persian letters)
@@ -667,8 +721,10 @@ _ALLOWED_CHARS_PATTERN = re.compile(
     "\uFE70-\uFEFF"        # Arabic Presentation Forms-B
     "\u200C\u200D"         # ZWNJ / ZWJ, used constantly in Persian typography
     "\u2000-\u206F"        # General punctuation (em dash, ellipsis, etc.)
+    "\u2190-\u21FF"        # Arrows (→ ← ↑ ↓ etc. — Audit: #11)
     "\u2300-\u23FF"        # Misc technical (⏰⌚⏳⏱ etc. — Audit #5)
     "\u2600-\u27BF"        # Misc symbols / dingbats (🟢🟡🔴 etc. live partly here)
+    "\u2B00-\u2BFF"        # Misc symbols and arrows (⭐⬅️➡️ etc. — Audit: #11)
     "\uFE0F"               # Emoji variation selector (❤️ etc. — Audit #5)
     "\U0001F300-\U0001FAFF"  # Emoji blocks
     r"\s]"
@@ -683,39 +739,44 @@ def find_stray_script_chars(text):
 
 
 def generate_json(prompt, fallback=None, strict=False):
-    """Like generate_content_smart, but strips ```json fences and parses the
-    result.
+    """Like generate_content_smart, but extracts and parses a JSON
+    object/array from the result (see _extract_json_payload).
 
-    strict=False (default): on a failed API call OR a JSON parse failure,
-    log the problem and return `fallback` instead of raising — used where a
-    degraded-but-published result is better than no post at all (e.g. the
-    review pass, see review_content below).
+    strict=False (default): on a JSON parse failure, log the problem and
+    return `fallback` instead of raising — used where a degraded-but-
+    published result is better than no post at all (e.g. the review pass,
+    see review_content below). A model-call failure is handled entirely
+    inside generate_content_smart (Gemini errors -> Groq fallback), so
+    there's nothing left for this function to catch there except the
+    genuinely-unexpected, which is deliberately NOT caught (see bug #9
+    below).
 
-    strict=True: raise instead of silently returning `fallback` on either
-    failure mode. Used for the quiz/poll path (Audit #4), which has no other
-    review step — a parse failure there should surface as an error the admin
-    can see, not silently publish a generic placeholder question.
+    strict=True: also raise on a JSON parse failure instead of silently
+    returning `fallback`. Used for the quiz/poll path (Audit #4), which has
+    no other review step — a parse failure there should surface as an error
+    the admin can see, not silently publish a generic placeholder question.
 
-    AllTextProvidersFailedError always re-raises regardless of `strict`: it
+    AllTextProvidersFailedError always propagates regardless of `strict`: it
     means every configured text provider (Gemini AND the Groq fallback, see
     that class's docstring) failed on this call, not just a single-source
     hiccup — folding that into a generic "review failed, using fallback"
     would hide the one failure mode that's actually worth a specific admin
     alert (see main.py's top-level handler).
-    """
-    try:
-        raw = generate_content_smart(prompt)
-    except AllTextProvidersFailedError:
-        raise
-    except Exception as exc:
-        if strict:
-            raise
-        print("generate_json: model call failed after retries, using fallback:", exc)
-        return fallback
 
-    cleaned = raw.replace("```json", "").replace("```", "").strip()
+    Bug fix (#9): the model-call step used to be wrapped in a bare
+    `except Exception`, which treated ANY failure — including a genuine
+    bug in this code, like a TypeError from a malformed prompt object —
+    identically to an expected API failure, silently returning `fallback`
+    either way. generate_content_smart already handles every EXPECTED
+    failure mode internally; this function no longer adds a second,
+    broader catch on top of that, so an unexpected bug now surfaces as
+    itself (in both strict and non-strict mode) instead of masquerading
+    as "model call failed".
+    """
+    raw = generate_content_smart(prompt)  # AllTextProvidersFailedError propagates; so would a real bug
+
     try:
-        return json.loads(cleaned)
+        return _extract_json_payload(raw)
     except json.JSONDecodeError as exc:
         if strict:
             raise ValueError(f"Could not parse JSON from model response: {raw[:300]!r}") from exc

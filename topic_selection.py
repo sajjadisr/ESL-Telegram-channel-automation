@@ -2,6 +2,8 @@
 
 import datetime
 
+import clock
+
 from config import TOPICS_PATH, REVIEW_INTERVALS_DAYS, MAINTENANCE_INTERVAL_DAYS
 from memory import load_json
 from prompts import FORMATS
@@ -42,20 +44,36 @@ def remaining_topic_count(memory):
     return len([t for t in _all_topics() if t["topic"] not in history_topics])
 
 
-def recyclable_topic_count(memory):
-    """Topics taught before but eligible for a different format."""
-    count = 0
-    for topic in _all_topics():
-        last = _last_coverage(memory, topic["topic"])
-        if last is None:
-            continue
-        count += 1
-    return count
+def recyclable_topic_count(memory, format_name):
+    """Topics already taught (in any format) that are ELIGIBLE for
+    `format_name` specifically — i.e. what get_next_topic could still
+    recycle for this format once its own fresh pool runs out.
+
+    Bug fix (#35): this used to take no format_name at all and just count
+    every previously-taught topic, regardless of whether it was actually
+    eligible for anything in particular — silently ignoring the "for a
+    different format" half of its own docstring's promise. Not currently
+    called anywhere in this codebase (verified), so this had zero runtime
+    effect yet, but a function whose implementation doesn't match its own
+    documented contract is a bug waiting for its first real caller to
+    trust the docstring and get a wrong answer.
+    """
+    history_topics = {e["topic"] for e in _topic_history(memory)}
+    return len([
+        t for t in _all_topics()
+        if t["topic"] in history_topics and _eligible(t, format_name)
+    ])
 
 
-def record_topic_coverage(memory, topic_name, format_name, date_str):
+def record_topic_coverage(memory, topic_name, format_name, date_str, source="fresh"):
+    """`source` is one of "fresh" (never-taught-before topic, the normal
+    case), "recycle" (get_next_topic's pool-exhaustion fallback — reused
+    ahead of its spaced-repetition schedule because nothing untaught was
+    left), or "review" (get_due_review_topic's scheduled spaced-repetition
+    review). See get_due_review_topic's stage calculation for why this
+    distinction matters (bug #36)."""
     _topic_history(memory).append(
-        {"topic": topic_name, "format": format_name, "date": date_str}
+        {"topic": topic_name, "format": format_name, "date": date_str, "source": source}
     )
 
 
@@ -77,14 +95,15 @@ def _eligible(topic, format_name):
     2. `required_tags` on the format (e.g. idiom_proverb_bridge ->
        ["has_fa_equivalent"]) — a hard content requirement checked against
        the topic's own `tags` list, and it fails CLOSED: a topic with no
-       tags at all (every one of the 121 pre-existing entries, and anything
-       topic_generation.py self-refills later) simply doesn't qualify until
-       a human tags it. That's deliberate — the whole point of restricting
-       this at the schema level instead of trusting the prompt to
-       self-censor (§4) is that an unverified cultural pairing is exactly
-       the kind of "confidently wrong" claim a native reader catches
-       immediately, so the safe default is "not eligible yet", not
-       "eligible unless someone remembered to exclude it".
+       tags at all (every entry that predates the tags/eligible_formats
+       schema, and anything topic_generation.py self-refills later, since
+       it never sets tags either) simply doesn't qualify until a human
+       tags it. That's deliberate — the whole point of restricting this
+       at the schema level instead of trusting the prompt to self-censor
+       (§4) is that an unverified cultural pairing is exactly the kind of
+       "confidently wrong" claim a native reader catches immediately, so
+       the safe default is "not eligible yet", not "eligible unless
+       someone remembered to exclude it".
 
     A topic's own optional `eligible_formats` (§3) is a further, opt-in
     RESTRICTION layered on top of both checks above — for the case where a
@@ -116,9 +135,20 @@ def _eligible(topic, format_name):
 
 
 def get_next_topic(memory, format_name, theme_category=None):
-    """Pick the next topic. Never returns None while at least one topic in
-    topics.json is eligible for this format (see _eligible) — when the
-    fresh pool is exhausted, recycle with a different format (Audit #17).
+    """Pick the next topic. Never returns (None, None) while at least one
+    topic in topics.json is eligible for this format (see _eligible) —
+    when the fresh pool is exhausted, recycle with a different format
+    (Audit #17).
+
+    Returns (topic_dict, source), where source is "fresh" (never taught
+    before, in any format) or "recycle" (pool exhausted for this format;
+    reusing the least-recently-taught eligible topic ahead of its normal
+    spaced-repetition schedule). Callers should pass `source` straight
+    through to record_topic_coverage — see that function and
+    get_due_review_topic's stage calculation for why the distinction
+    matters (bug #36: a forced recycle used to be recorded identically to
+    a genuine scheduled review, silently inflating a topic's apparent
+    review progress).
 
     format_name alone now fully determines which topics are even
     candidates (via _eligible / prompts.FORMATS) — callers no longer pass
@@ -132,7 +162,7 @@ def get_next_topic(memory, format_name, theme_category=None):
     fresh/recycle order exactly as before campaigns existed."""
     candidates = [t for t in _all_topics() if _eligible(t, format_name)]
     if not candidates:
-        return None
+        return None, None
 
     history_topics = {e["topic"] for e in _topic_history(memory)}
 
@@ -142,8 +172,8 @@ def get_next_topic(memory, format_name, theme_category=None):
         if theme_category:
             themed = [t for t in fresh if t["category"] == theme_category]
             if themed:
-                return themed[0]
-        return fresh[0]
+                return themed[0], "fresh"
+        return fresh[0], "fresh"
 
     # Recycle: prefer topics last taught in a different format, oldest first.
     def recycle_key(topic):
@@ -156,13 +186,48 @@ def get_next_topic(memory, format_name, theme_category=None):
             age = datetime.date.min
         return (same_format, age)
 
-    return sorted(candidates, key=recycle_key)[0]
+    return sorted(candidates, key=recycle_key)[0], "recycle"
 
 
 def _topic_by_name(name):
     for t in _all_topics():
         if t["topic"] == name:
             return t
+    return None
+
+
+def pending_vocab_spotlight_callback(memory, format_name):
+    """The most recently vocab_spotlight-taught topic that hasn't been
+    covered again by anything since, if it's eligible for `format_name` —
+    or None.
+
+    Bug fix (#40): vocab_spotlight's own guidance (prompts.py) says this
+    post "is supposed to prepare the ground for a future scene or idiom"
+    — but nothing anywhere actually connected a spotlighted word to a
+    later micro_scene/idiom_proverb_bridge topic pick; every format's
+    topic selection was completely independent, making that line
+    aspirational text with no mechanism behind it. This gives it one:
+    a soft, best-effort preference, checked by main.py::_select_topic
+    before it falls through to the normal fresh/recycle pool — never a
+    hard requirement (returns None freely), and never a way to violate a
+    format's declared eligibility (checked via _eligible same as
+    everything else).
+    """
+    if format_name not in ("micro_scene", "idiom_proverb_bridge"):
+        return None
+    spotlighted = [e for e in _topic_history(memory) if e.get("format") == "vocab_spotlight"]
+    if not spotlighted:
+        return None
+    spotlighted.sort(key=lambda e: e.get("date") or "0000-00-00")
+    for entry in reversed(spotlighted):  # most recently spotlighted first
+        name = entry["topic"]
+        last = _last_coverage(memory, name)
+        # Still "pending a callback" only if nothing (this format or any
+        # other) has covered it again since it was spotlighted.
+        if last is entry:
+            topic = _topic_by_name(name)
+            if topic is not None and _eligible(topic, format_name):
+                return topic
     return None
 
 
@@ -194,7 +259,7 @@ def pillar_last_covered(memory, pillar):
 def days_since_pillar_covered(memory, pillar, today=None):
     """None if the pillar has never been covered (caller should treat that
     as "worse than any number of days", not skip it)."""
-    today = today or datetime.date.today()
+    today = today or clock.today()
     last = pillar_last_covered(memory, pillar)
     if last is None:
         return None
@@ -233,7 +298,7 @@ def get_due_review_topic(memory, today=None):
     under an oversubscribed backlog: old content gets refreshed less often
     than the nominal interval, but never silently dropped, and nothing
     breaks — it's a graceful, expected outcome, not an error state."""
-    today = today or datetime.date.today()
+    today = today or clock.today()
 
     by_topic = {}
     for entry in _topic_history(memory):
@@ -242,7 +307,27 @@ def get_due_review_topic(memory, today=None):
     due_candidates = []
     for name, entries in by_topic.items():
         entries = sorted(entries, key=lambda e: e.get("date") or "0000-00-00")
-        stage = len(entries) - 1
+
+        # Bug fix (#36): stage used to be len(entries) - 1, counting EVERY
+        # history entry the same way — including ones added by
+        # get_next_topic's pool-exhaustion recycling fallback, which is
+        # completely ungated by review timing (it can fire immediately,
+        # just because the fresh pool ran dry). That silently inflated a
+        # topic's apparent spaced-repetition progress: a topic recycled a
+        # couple of times could look "graduated" into the 90-day
+        # maintenance bucket after very little genuine review. Only
+        # "fresh" (the one real first exposure) and "review" (an actual
+        # scheduled spaced-repetition event) entries advance stage now;
+        # a "recycle" entry still updates the LAST-COVERED DATE used for
+        # the next due-date below (the reader did see it again, so it's
+        # reasonable to count from that), it just doesn't fast-track
+        # graduation to a longer interval the way a real review does.
+        # Entries from before this fix (or from schema migration) have no
+        # "source" field at all — treated as "review" (the old, more
+        # conservative behavior: counted toward stage), not "recycle", so
+        # this fix can never retroactively RAISE anyone's due-ness.
+        real_exposures = [e for e in entries if e.get("source", "review") != "recycle"]
+        stage = max(len(real_exposures) - 1, 0)
         interval = (
             REVIEW_INTERVALS_DAYS[stage] if stage < len(REVIEW_INTERVALS_DAYS)
             else MAINTENANCE_INTERVAL_DAYS  # graduated -> standing low-frequency refresh

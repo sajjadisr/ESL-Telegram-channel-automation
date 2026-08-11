@@ -93,24 +93,44 @@ def get_conn():
     return conn
 
 
+def _next_post_id(conn):
+    row = conn.execute("SELECT MAX(id) FROM posts").fetchone()
+    return (row[0] or 0) + 1
+
+
 def save_post(date, format_name, category, level, title, content, keywords, status,
               story_id=None, chunk_index=None):
+    """Bug fix (durability): this used to INSERT+commit to SQLite first and
+    only append to posts.jsonl afterward. DB_PATH is a disposable local
+    cache (rebuilt from POSTS_JSONL_PATH whenever missing — see the note
+    at the top of this file); posts.jsonl is the only thing that survives
+    across runs. A crash between the two steps used to durably lose the
+    post: the local DB had it, but it was thrown away at the end of the
+    job and the next run rebuilt from a jsonl that never got the entry.
+
+    Now the order is reversed: compute the id, write the durable jsonl
+    record *first*, then mirror it into the local SQLite cache. If the
+    process dies after the jsonl write but before (or during) the SQLite
+    write, the next fresh rebuild-from-jsonl recovers the row completely.
+    If it dies before the jsonl write, nothing has happened yet — no
+    inconsistent state either way.
+    """
     conn = get_conn()
-    cur = conn.execute(
-        "INSERT INTO posts (date, format, category, level, title, content, keywords, status, "
-        "story_id, chunk_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (date, format_name, category, level, title, content, keywords, status,
-         story_id, chunk_index),
-    )
-    post_id = cur.lastrowid
-    conn.commit()
-    conn.close()
+    post_id = _next_post_id(conn)
     _append_jsonl({
         "op": "insert", "id": post_id, "date": date, "format": format_name,
         "category": category, "level": level, "title": title, "content": content,
         "keywords": keywords, "status": status, "story_id": story_id,
         "chunk_index": chunk_index,
     })
+    conn.execute(
+        "INSERT INTO posts (id, date, format, category, level, title, content, keywords, "
+        "status, story_id, chunk_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (post_id, date, format_name, category, level, title, content, keywords, status,
+         story_id, chunk_index),
+    )
+    conn.commit()
+    conn.close()
     return post_id
 
 
@@ -128,11 +148,15 @@ def get_last_published_chunk(story_id):
 
 
 def update_post_content(post_id, content):
+    """Bug fix (durability): same reordering as save_post above -- the
+    durable jsonl "update" record is written before the local SQLite
+    mirror, not after, so a crash in between can't silently revert this
+    update on the next rebuild-from-jsonl."""
+    _append_jsonl({"op": "update", "id": post_id, "content": content})
     conn = get_conn()
     conn.execute("UPDATE posts SET content = ? WHERE id = ?", (content, post_id))
     conn.commit()
     conn.close()
-    _append_jsonl({"op": "update", "id": post_id, "content": content})
 
 
 def get_recent_posts(limit=15, published_only=True):

@@ -29,7 +29,9 @@ the campaign_state.json shape below leaves room to grow into that later
 
 import datetime
 
-from config import CAMPAIGN_STATE_PATH, TOPICS_PATH
+import clock
+
+from config import CAMPAIGN_STATE_PATH
 from memory import load_json, save_json
 
 
@@ -37,13 +39,23 @@ def _week_start(today=None):
     """ISO date string for the most recent Saturday (inclusive) — Saturday
     is day 0 in schedule_builder.WEEKDAYS, so a campaign week matches the
     same boundary the format rotation already uses."""
-    today = today or datetime.date.today()
+    today = today or clock.today()
     days_since_saturday = (today.weekday() - 5) % 7  # Mon=0 ... Sun=6, Sat=5
     return str(today - datetime.timedelta(days=days_since_saturday))
 
 
 def _all_topics():
-    return load_json(TOPICS_PATH, [])
+    """Bug fix (#37): this used to be its own separate implementation
+    (`load_json(TOPICS_PATH, [])`, no filtering) — a near-duplicate of
+    topic_selection._all_topics() that skipped that module's
+    _EXCLUDED_TOPICS filter. The two could silently disagree about what
+    counts as a real, selectable topic (topic_selection.get_next_topic
+    would never select an excluded entry; this module's theme-picking
+    counts would still credit it toward a category's "fresh topics
+    remaining" tally). Delegating to the one real implementation means
+    they can't drift apart again."""
+    from topic_selection import _all_topics as _topic_selection_all_topics
+    return _topic_selection_all_topics()
 
 
 def _pick_theme_category(memory, previous_theme=None):
@@ -92,11 +104,23 @@ def get_or_start_week(memory):
 def record_post(state, date_str, format_name, title):
     """Append today's post to the running week so tomorrow's prompt can
     reference it. Safe to call for every format, including pending_manual
-    image posts and poll/quiz posts."""
-    state.setdefault("posts_this_week", []).append(
-        {"date": date_str, "format": format_name, "title": title}
-    )
-    save_json(CAMPAIGN_STATE_PATH, state)
+    image posts and poll/quiz posts.
+
+    Never raises — same reasoning as analytics.record_text_post's #32 fix:
+    this runs right after a real send has already succeeded, so a
+    bookkeeping failure here (most plausibly memory.save_json hitting a
+    disk issue) must degrade to "this week's campaign log is missing one
+    entry" rather than propagate up and make main()'s top-level handler
+    falsely tell the admin nothing was published this run.
+    """
+    try:
+        state.setdefault("posts_this_week", []).append(
+            {"date": date_str, "format": format_name, "title": title}
+        )
+        save_json(CAMPAIGN_STATE_PATH, state)
+    except Exception as exc:  # noqa: BLE001 — see docstring: must never look like the publish failed
+        print(f"campaigns.record_post: failed to record an already-published post ({exc}) — "
+              f"the post itself is fine, only this week's campaign log entry was lost.")
 
 
 def campaign_context_block(state):

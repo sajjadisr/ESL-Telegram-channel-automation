@@ -32,14 +32,36 @@ def _fetch_views_forwards(message_ids):
     has a message for. A deleted/inaccessible message comes back as None
     from get_messages and is simply omitted — nothing to harvest for it,
     and analytics.apply_harvested_engagement leaves that entry's metrics
-    as None rather than treating the gap as zero engagement."""
+    as None rather than treating the gap as zero engagement.
+
+    Bug fix (#28): this used to open the client with `with client:`, which
+    Telethon documents as being exactly equivalent to calling .start() —
+    "it will automatically start() the client, logging or signing up if
+    necessary." If TELETHON_SESSION_STRING is ever invalid, expired, or
+    revoked, .start() performs an INTERACTIVE login, calling input() for a
+    phone number/code — which would hang forever waiting on stdin in the
+    non-interactive GitHub Actions runner, not raise a catchable
+    exception, so the try/except in harvest_engagement_metrics couldn't
+    do anything about it. connect() (documented by Telethon as the
+    interactive-free building block .start() is made from) never prompts;
+    is_user_authorized() is checked explicitly afterward, and a clear,
+    immediately-catchable RuntimeError is raised instead of ever reaching
+    the interactive path.
+    """
     client = TelegramClient(
         StringSession(TELETHON_SESSION_STRING),
         int(TELEGRAM_API_ID),
         TELEGRAM_API_HASH,
     )
     results = {}
-    with client:
+    client.connect()
+    try:
+        if not client.is_user_authorized():
+            raise RuntimeError(
+                "TELETHON_SESSION_STRING is set but is no longer authorized "
+                "(expired, revoked, or logged out from another device?). Generate "
+                "a fresh one with scripts/generate_telethon_session.py."
+            )
         # TELEGRAM_CHANNEL_ID is whatever the Bot API side already uses
         # (typically "@channelusername") — Telethon resolves the same
         # username string directly, so no separate identifier is needed.
@@ -48,6 +70,8 @@ def _fetch_views_forwards(message_ids):
             if msg is None:
                 continue
             results[msg.id] = (msg.views or 0, msg.forwards or 0)
+    finally:
+        client.disconnect()
     return results
 
 

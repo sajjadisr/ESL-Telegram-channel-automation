@@ -10,6 +10,8 @@ main.py) and carried on the pending_polls.json entry through to here,
 rather than re-derived later from the (free-form, Persian) question text."""
 
 import datetime
+
+import clock
 import re
 
 from config import FEEDBACK_PATH, MEMORY_PATH, PENDING_POLLS_PATH
@@ -33,7 +35,7 @@ def save_pending_poll(message_id, question, is_quiz=False, correct_index=None,
         "question": question,
         "is_quiz": is_quiz,
         "correct_index": correct_index,
-        "sent_date": str(datetime.date.today()),
+        "sent_date": clock.today_str(),
         "theme_category": theme_category,
         "experiment_id": experiment_id,
         "variant_label": variant_label,
@@ -109,7 +111,7 @@ def harvest_pending_polls():
         feedback_list.append({
             "post_title": entry.get("question", ""),
             "notes": " ".join(note_parts),
-            "date": str(datetime.date.today()),
+            "date": clock.today_str(),
             "source": "auto_poll_harvest",
             **({"correct_rate": correct_rate} if correct_rate is not None else {}),
         })

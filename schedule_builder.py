@@ -61,7 +61,25 @@ WEEKDAYS = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", 
 
 # progress_recap is scheduled by post-count (RECAP_EVERY_N_POSTS), not by
 # weekday — it must never appear in format_schedule.json.
-EXCLUDED_FROM_ROTATION = {"progress_recap"}
+# Bug fix (#33 — the most severe bug found in the whole project): this used
+# to contain only "progress_recap". reader_installment and news_relevel
+# were both missing, and neither has a category_filter in prompts.FORMATS
+# (so _eligible() would happily call any ordinary vocab/grammar topic
+# "eligible" for either). Both formats fundamentally depend on content
+# (a real story chunk, or a real news summary) that ONLY main.py's special
+# extra-slot chain supplies via extra_note — the ordinary weekday (slot 1)
+# path has no way to supply it. Verified end-to-end: simulating realistic
+# scores (other formats underperforming, these two simply unscored, which
+# is the normal state before engagement_harvest.py is even configured) made
+# build_engagement_schedule assign both formats to regular weekdays. Once
+# that happens, resolve_today_format() picks either up as slot 1's format,
+# which routes through the ordinary _select_topic/get_next_topic path and
+# hands back something like "Present simple tense" with generation
+# guidance that says "this is an episode of a pre-written story, continue
+# it below" / "here's a real news summary below" and no actual story or
+# news content ever supplied — a broken, nonsensical post with nothing
+# stopping it from going out live.
+EXCLUDED_FROM_ROTATION = {"progress_recap", "reader_installment", "news_relevel"}
 
 FIXED_SLOTS = {"illustrated_pun": 1}
 FLOOR_FORMATS = {"vocab_spotlight": 1, "quiz": 1}

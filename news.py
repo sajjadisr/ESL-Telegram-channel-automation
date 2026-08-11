@@ -59,6 +59,47 @@ NEWS_FAILURE_STREAK_KEY = "news_consecutive_failures"
 NEWS_ALERTED_KEY = "news_health_alerted"
 
 
+# Bug fix (#45): this used to be a plain substring check (`word in
+# lowered`), which matches a denylist word anywhere inside a longer,
+# unrelated word — verified directly against the real keyword list:
+# "war" matched inside software/hardware/award/warning/forward/backward/
+# toward/warehouse/warm/reward/wardrobe/awkward/warranty/warp; "dead"
+# matched deadline/deadlock/deadpan; "dies" matched studies/bodies/
+# ladies/candies/remedies/comedies/tragedies/melodies/parodies; "rape"
+# matched grape/grapes/drape/draped. Since NEWS_FEEDS includes BBC's
+# technology/science feeds, ordinary headlines like "New software
+# update..." or "Study shows..." were being silently discarded as
+# violent/distressing content.
+#
+# Now requires a word boundary before the keyword (so "war" can never
+# match while still glued to "soft"/"ware"/etc.), and allows a common
+# inflectional suffix (-s/-es/-ed/-ing) after it before the closing
+# boundary, so this doesn't just trade false positives for false
+# negatives on ordinary inflected forms: "attacked", "bombed", "raped",
+# "killing" etc. still match (they wouldn't with a bare \bword\b), while
+# "software"/"warehouse"/"studies"/"grape" still correctly don't.
+_DENYLIST_PATTERN = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in NEWS_DENYLIST_KEYWORDS) + r")(?:e?[sd]|ing)?\b",
+    re.IGNORECASE,
+)
+
+# Bug fix (#47): this used to be re.sub(r"<[^>]+>", "", ...) — the same
+# any-angle-brackets pattern as channels.py's old _TAG_STRIP (#18),
+# capable of eating a literal "<"/">" text span that isn't a tag at all.
+# Reusing channels.py's fix directly isn't right here, though: that one
+# is deliberately scoped to the small, fixed set of tags THIS PROJECT'S
+# OWN generated content uses (Telegram's supported HTML subset) — but
+# RSS summaries are arbitrary third-party HTML that can use any real tag
+# (<div>, <p>, <ul>, <a href=...>, etc.), so a narrow allowlist would
+# leave most of it unstripped. This instead requires the content between
+# < and > to actually LOOK LIKE a tag (starts with a letter, optionally
+# with a leading "/") rather than matching literally anything — so a
+# genuine tag of any name is still stripped, while "5 < x > 1" (next
+# character after "<" is a space, not a letter) or "<3" (a digit, not a
+# letter) both correctly survive untouched.
+_HTML_TAG_LIKE = re.compile(r"</?[a-zA-Z][a-zA-Z0-9]*(?:\s[^<>]*)?>")
+
+
 def _seen_links(memory):
     return memory.setdefault(NEWS_SEEN_KEY, [])
 
@@ -73,15 +114,14 @@ def _mark_seen(memory, link):
 
 
 def _is_denylisted(text):
-    lowered = text.lower()
-    return any(word in lowered for word in NEWS_DENYLIST_KEYWORDS)
+    return bool(_DENYLIST_PATTERN.search(text))
 
 
 def _clean_summary(raw_summary):
     """RSS summaries are frequently HTML — strip tags before showing the
     model anything, since our own prompts are HTML-formatted and a stray
     <a href=...> from a feed would confuse that."""
-    return re.sub(r"<[^>]+>", "", raw_summary or "").strip()
+    return _HTML_TAG_LIKE.sub("", raw_summary or "").strip()
 
 
 def _fetch_feed_entries(feed_url):
@@ -116,14 +156,32 @@ def _fetch_feed_entries(feed_url):
 
 def _record_fetch_outcome(memory, succeeded):
     """Updates the consecutive-failure streak used by health_alert_needed.
-    Any success resets the streak and clears the alerted flag, so a later
-    unrelated bad streak can alert again instead of staying silenced by an
-    old alert forever."""
-    if succeeded:
+
+    succeeded=True (a real item was found): resets the streak and clears
+    the alerted flag, so a later unrelated bad streak can alert again
+    instead of staying silenced by an old alert forever.
+
+    succeeded=False (the feeds themselves failed to fetch/parse — see
+    _fetch_feed_entries): increments the streak — this is specifically
+    what NEWS_FAILURE_ALERT_THRESHOLD exists to catch (a dead/renamed feed
+    URL).
+
+    succeeded=None (bug fix #48: feeds fetched fine, but nothing survived
+    the seen-link/denylist filters this time — an ordinary, expected dry
+    spell, not evidence the feed itself is broken): the streak is left
+    exactly as it was, neither incremented nor reset. Previously this case
+    didn't exist and was recorded identically to succeeded=False, so a
+    harmless dry spell (especially right after #45's denylist fix, which
+    now correctly admits more articles and so churns through the
+    seen-link window faster) could trigger the same "feed might be dead"
+    alert as a genuinely broken feed URL.
+    """
+    if succeeded is True:
         memory[NEWS_FAILURE_STREAK_KEY] = 0
         memory[NEWS_ALERTED_KEY] = False
-    else:
+    elif succeeded is False:
         memory[NEWS_FAILURE_STREAK_KEY] = memory.get(NEWS_FAILURE_STREAK_KEY, 0) + 1
+    # succeeded is None -> no change to the streak either way.
 
 
 def health_alert_needed(memory):
@@ -169,16 +227,39 @@ def fetch_news_item(memory):
             candidates.append({
                 "title": title,
                 "summary": summary or title,
+                "has_real_summary": bool(summary),
                 "link": link,
                 "source": feed_url,
             })
 
     if not candidates:
-        _record_fetch_outcome(memory, succeeded=False)
+        # Bug fix (#48): this used to call _record_fetch_outcome(succeeded=
+        # False) here too — identically to the branch below, where the
+        # feeds genuinely failed to fetch/parse. But "fetched fine, just
+        # nothing survived the seen-link/denylist filters this time" is a
+        # completely normal, expected occurrence (especially right after
+        # #45's fix, which now correctly lets more articles through the
+        # denylist and so churns through the seen-link window faster) —
+        # not the same problem as a feed URL actually going dead, which is
+        # what config.py's NEWS_FAILURE_ALERT_THRESHOLD comment says this
+        # streak exists to catch. Conflating the two meant a harmless dry
+        # spell could trigger the same alert as a genuinely broken feed,
+        # sending the admin looking for a dead URL when nothing was
+        # actually wrong. Recorded as a distinct, non-alerting outcome
+        # instead.
+        _record_fetch_outcome(memory, succeeded=None)
         return None
 
-    # Simplicity filter: shorter, more concrete summaries first.
-    candidates.sort(key=lambda c: len(c["summary"]))
+    # Bug fix (#46): sorting by raw summary length alone used to be
+    # confounded by the `summary or title` fallback just above — an entry
+    # with no genuine RSS summary falls back to its (usually much
+    # shorter) title, which then made it look "simplest" and get picked
+    # FIRST, systematically favoring the least-informative candidates
+    # over genuinely short-but-substantive real summaries. Candidates
+    # with a real summary are now preferred as a group; only within that
+    # group (or when nothing has a real summary at all) does shorter-first
+    # apply.
+    candidates.sort(key=lambda c: (not c["has_real_summary"], len(c["summary"])))
     chosen = candidates[0]
     _mark_seen(memory, chosen["link"])
     _record_fetch_outcome(memory, succeeded=True)

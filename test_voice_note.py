@@ -44,7 +44,14 @@ print("\n=== _strip_for_speech: removes HTML tags, keeps the actual text ===")
 tagged = "این یه <b>کلمه</b> مهمه: <tg-spoiler>جواب پنهان</tg-spoiler> و بازم متن."
 stripped = voice_note._strip_for_speech(tagged)
 check("no angle-bracket tags survive", "<" not in stripped and ">" not in stripped, stripped)
-check("the actual words are still present", "کلمه" in stripped and "جواب پنهان" in stripped, stripped)
+check("ordinary (non-spoiler) words are still present", "کلمه" in stripped, stripped)
+# Bug fix (#50): a spoiler's CONTENT — not just its <tg-spoiler> tags — must
+# never survive into speech, or the hidden answer gets read aloud, defeating
+# the entire point of it being a spoiler. This assertion used to check the
+# opposite (that "جواب پنهان" / "hidden answer" WAS still present after
+# stripping) — that was checking the bug, not correct behavior; updated to
+# check the fix instead.
+check("spoiler CONTENT is removed, not just its tags", "جواب پنهان" not in stripped, stripped)
 
 print("\n=== pcm_to_ogg_opus: real ffmpeg round-trip ===")
 if subprocess.run(["which", "ffmpeg"], capture_output=True).returncode != 0:

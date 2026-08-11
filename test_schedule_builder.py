@@ -74,6 +74,29 @@ print("\n=== build_slot_counts: progress_recap is always excluded ===")
 check("progress_recap never appears in slot counts",
       "progress_recap" not in counts_mixed, counts_mixed)
 
+# Bug fix (#89): this file tested the exclusion pattern for progress_recap
+# but never extended it to reader_installment/news_relevel, even though
+# both need identical treatment for identical reasons (see schedule_
+# builder.EXCLUDED_FROM_ROTATION's #33 comment) — the test that could have
+# caught the most severe bug in the whole project checked for the right
+# *shape* of problem, just not comprehensively enough to catch it.
+print("\n=== build_slot_counts: reader_installment/news_relevel are always excluded (#33/#89) ===")
+counts_favoring_them = sb.build_slot_counts(
+    ALL_FORMATS, {"reader_installment": 1.0, "news_relevel": 1.0, "micro_scene": 0.0},
+)
+check("reader_installment never appears in slot counts, even when it would score highest",
+      "reader_installment" not in counts_favoring_them, counts_favoring_them)
+check("news_relevel never appears in slot counts, even when it would score highest",
+      "news_relevel" not in counts_favoring_them, counts_favoring_them)
+schedule_favoring_them = sb.build_engagement_schedule(
+    ALL_FORMATS, {"reader_installment": 1.0, "news_relevel": 1.0, "micro_scene": 0.0},
+    {d: "micro_scene" for d in sb.WEEKDAYS},
+)
+check("reader_installment never appears in the actual weekday schedule",
+      "reader_installment" not in schedule_favoring_them.values(), schedule_favoring_them)
+check("news_relevel never appears in the actual weekday schedule",
+      "news_relevel" not in schedule_favoring_them.values(), schedule_favoring_them)
+
 print("\n=== build_slot_counts: higher-scored format gets at least as many slots ===")
 counts_favor_quiz = sb.build_slot_counts(ALL_FORMATS, {"quiz": 1.0, "micro_scene": 0.0})
 check("a format scored 1.0 gets more slots than one scored 0.0",

@@ -23,13 +23,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import clock
 from config import POSTS_PER_DAY
 from database import count_posts_on_date
 from telegram_bot import send_admin_message
 
 
 def main():
-    today_str = str(datetime.date.today())
+    today_str = clock.today_str()
     posted_today = count_posts_on_date(today_str)
 
     if posted_today < POSTS_PER_DAY:

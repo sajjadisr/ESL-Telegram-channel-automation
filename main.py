@@ -1,5 +1,6 @@
-import datetime
 import json
+
+import clock
 
 from config import (
     MEMORY_PATH, STRATEGY_PATH, SCHEDULE_PATH,
@@ -19,6 +20,7 @@ from prompts import (
     FORMATS, build_generation_prompt, build_review_prompt, build_poll_prompt,
     build_scene_prompt, compose_image_prompt, build_recap_title_prompt,
 )
+import telegram_bot
 from telegram_bot import (
     send_message, send_poll, send_admin_image_prompt, send_admin_message, send_photo, send_document,
     send_voice,
@@ -27,7 +29,7 @@ from channels import broadcast_extra_channels, broadcast_extra_channels_photo, f
 from poll_feedback import harvest_pending_polls, save_pending_poll
 from topic_selection import (
     migrate_covered_topics, get_next_topic, get_due_review_topic,
-    remaining_topic_count, record_topic_coverage,
+    remaining_topic_count, record_topic_coverage, pending_vocab_spotlight_callback,
 )
 from topic_generation import generate_and_append_topics
 import campaigns
@@ -57,39 +59,71 @@ INVENTED_IDIOM_TOPIC = {
 }
 
 
+TOPIC_SUPPLY_ALERTED_KEY = "topic_supply_alerted"
+STORY_SUPPLY_ALERTED_KEY = "story_supply_alerted"
+
+
 def maybe_alert_low_topic_supply(memory):
+    """Bug fix (#79): this used to re-send the "still low" admin alert on
+    every single qualifying run for as long as the underlying problem
+    persisted (e.g. auto-generated candidates kept colliding with
+    existing topics via topic_generation._is_duplicate) — unlike
+    news.health_alert_needed's deliberate one-alert-per-streak design
+    just below. Now mirrors that same pattern: alerts once per low-supply
+    episode, then stays quiet (still retrying generation each run, since
+    each attempt is an independent roll of the dice and might succeed
+    even after a prior one didn't) until supply actually recovers, at
+    which point it's ready to alert again if it ever dips a second time.
+    """
     remaining = remaining_topic_count(memory)
-    if remaining <= LOW_TOPIC_WARNING_THRESHOLD:
-        added = []
-        try:
-            added = generate_and_append_topics(AUTO_GENERATE_TOPIC_COUNT)
-        except Exception as exc:
-            print("maybe_alert_low_topic_supply: auto-generation failed:", exc)
-        if added:
-            send_admin_message(
-                f"ℹ️ موضوعات تازه داشت کم می‌شد ({remaining} مونده بود)، سیستم خودش "
-                f"{len(added)} موضوع جدید (سطح A1–A2) به data/topics.json اضافه کرد. "
-                f"لازم نیست کاری بکنی — فقط برای اطلاع."
-            )
-        else:
-            send_admin_message(
-                f"⚠️ فقط {remaining} موضوع تازه (هرگز تدریس‌نشده) توی data/topics.json باقی مونده، "
-                f"و تلاش خودکار برای اضافه‌کردن موضوع جدید این‌بار جواب نداد. یه نگاه بنداز — "
-                f"شاید لازم باشه دستی چندتا موضوع مبتدی (A1–A2) اضافه کنی."
-            )
+    if remaining > LOW_TOPIC_WARNING_THRESHOLD:
+        memory[TOPIC_SUPPLY_ALERTED_KEY] = False  # recovered — rearm for the next time
+        return
+    added = []
+    try:
+        added = generate_and_append_topics(AUTO_GENERATE_TOPIC_COUNT)
+    except Exception as exc:
+        print("maybe_alert_low_topic_supply: auto-generation failed:", exc)
+    if added:
+        send_admin_message(
+            f"ℹ️ موضوعات تازه داشت کم می‌شد ({remaining} مونده بود)، سیستم خودش "
+            f"{len(added)} موضوع جدید (سطح A1–A2) به data/topics.json اضافه کرد. "
+            f"لازم نیست کاری بکنی — فقط برای اطلاع."
+        )
+        return
+    if not memory.get(TOPIC_SUPPLY_ALERTED_KEY, False):
+        send_admin_message(
+            f"⚠️ فقط {remaining} موضوع تازه (هرگز تدریس‌نشده) توی data/topics.json باقی مونده، "
+            f"و تلاش خودکار برای اضافه‌کردن موضوع جدید این‌بار جواب نداد. یه نگاه بنداز — "
+            f"شاید لازم باشه دستی چندتا موضوع مبتدی (A1–A2) اضافه کنی."
+        )
+        memory[TOPIC_SUPPLY_ALERTED_KEY] = True
 
 
 def maybe_alert_low_story_supply(memory):
     """Mirrors maybe_alert_low_topic_supply, but for the graded-reader
     library — no auto-generation here (a good story needs real curation,
-    not a one-line prompt), so this is alert-only."""
-    if reader.low_supply_warning_needed(memory):
-        remaining = reader.remaining_untouched_stories(memory)
-        send_admin_message(
-            f"⚠️ فقط {remaining} داستان تازه (شروع‌نشده) توی data/reader_library.json باقی مونده. "
-            f"وقتی به صفر برسه، فرمت «داستان مرحله‌ای» خودش رو رد می‌کنه تا موجودی تمدید بشه — "
-            f"یه نگاه بنداز و چندتا داستان جدید (از قبل بخش‌بندی‌شده به چند تکه) اضافه کن."
-        )
+    not a one-line prompt), so this is alert-only.
+
+    Bug fix (#80): this had NO alerted-flag at all (unlike
+    maybe_alert_low_topic_supply's partial version of this same fix, or
+    news.health_alert_needed's original). Since there's no auto-recovery
+    path here, an unresolved low supply used to re-send the identical
+    alert on every single qualifying run — potentially for weeks, until a
+    human manually curates and adds new stories. Now alerts once per
+    episode, like its two siblings."""
+    if not reader.low_supply_warning_needed(memory):
+        memory[STORY_SUPPLY_ALERTED_KEY] = False  # recovered — rearm for the next time
+        return
+    if memory.get(STORY_SUPPLY_ALERTED_KEY, False):
+        return
+    remaining = reader.remaining_untouched_stories(memory)
+    send_admin_message(
+        f"⚠️ فقط {remaining} داستان تازه (شروع‌نشده) توی data/reader_library.json باقی مونده. "
+        f"وقتی به صفر برسه، فرمت «داستان مرحله‌ای» خودش رو رد می‌کنه تا موجودی تمدید بشه — "
+        f"یه نگاه بنداز و چندتا داستان جدید (از قبل بخش‌بندی‌شده به چند تکه) اضافه کن."
+    )
+    memory[STORY_SUPPLY_ALERTED_KEY] = True
 
 
 def maybe_alert_news_health(memory):
@@ -116,13 +150,30 @@ def resolve_today_format():
     if post_count > 0 and post_count % RECAP_EVERY_N_POSTS == 0:
         return "progress_recap", True
     schedule = load_json(SCHEDULE_PATH, {})
-    weekday_name = datetime.date.today().strftime("%A")
+    weekday_name = clock.weekday_name()
     return schedule.get(weekday_name, "micro_scene"), False
 
 
 def generate_reviewed_text(memory, strategy, related, topic, format_name,
                             recap_titles=None, extra_note="",
                             campaign_note="", profile_note=""):
+    """Returns the finished, review-passing text, or None if it still
+    fails review after MAX_REVIEW_ATTEMPTS retries — callers must treat
+    None exactly like handle_poll_format's None: skip today's post
+    gracefully, don't publish anything.
+
+    Bug fix (#25): this used to always return the last draft regardless of
+    whether it ever actually passed review — even after every one of
+    MAX_REVIEW_ATTEMPTS retries came back ok: False, main() would publish
+    it anyway, with no admin alert and no skip path (unlike the poll path,
+    which raises in strict mode, or the image path's manual hand-off).
+    That quietly undermined the review gate's whole "fail closed" point:
+    a review call itself failing was already handled (see AUDIT_FIXES.md),
+    but a review call that SUCCEEDED and correctly said "this is bad" was
+    not. Now, if the final draft still isn't ok, this alerts the admin
+    with the specific reason and returns None instead of publishing
+    something its own review gate never approved.
+    """
     def _draft(note=""):
         prompt = build_generation_prompt(
             memory, strategy, related, topic, format_name,
@@ -168,6 +219,25 @@ def generate_reviewed_text(memory, strategy, related, topic, format_name,
     if stray:
         for ch in stray:
             content = content.replace(ch, "")
+        # Stripping stray characters can turn an otherwise-fine draft from
+        # "not ok" into genuinely fine — recompute without spending another
+        # review/dedup call (both already ran against this exact content;
+        # only the stray-char verdict is now stale).
+        ok = review.get("ok") is True and dup_title is None
+
+    if not ok:
+        reason = review.get("feedback") or (
+            f"محتوا از نظر معنایی خیلی شبیه پست قبلیِ «{dup_title}» بود" if dup_title
+            else "دلیل مشخص نیست"
+        )
+        send_admin_message(
+            f"⚠️ پستِ «{FORMATS[format_name]['label']}» امروز بعد از {MAX_REVIEW_ATTEMPTS + 1} تلاش هم "
+            f"از مرحله‌ی بازبینی رد نشد و منتشر نشد: {reason}\n"
+            f"لازم نیست کاری بکنی — این دور فقط پستی منتشر نشد، فردا دوباره تلاش می‌شه."
+        )
+        print(f"generate_reviewed_text: giving up on {format_name} after "
+              f"{MAX_REVIEW_ATTEMPTS + 1} attempts — still not ok:", reason)
+        return None
     return content
 
 
@@ -200,7 +270,15 @@ def handle_poll_format(strategy, related, topic, format_name, recent_titles=None
         return None
 
     question = data.get("question", topic["topic"])
-    options = data.get("options", [])[:10]
+    # Capped at telegram_bot.POLL_MAX_OPTIONS (12, Telegram's current
+    # documented maximum — send_poll itself validates this too, but
+    # trimming here first means a model response with, say, 13 options
+    # loses only the excess rather than being rejected outright). The
+    # minimum here (2) is a CONTENT-quality bar, not a copy of Telegram's
+    # technical one — Telegram itself now accepts as few as 1, but a
+    # single-option "quiz" or "poll" isn't meaningful content regardless
+    # of what the API permits.
+    options = data.get("options", [])[:telegram_bot.POLL_MAX_OPTIONS]
     if len(options) < 2:
         send_admin_message(
             f"⚠️ {fmt['label']} امروز کمتر از ۲ گزینه برگردوند — پست منتشر نشد."
@@ -208,17 +286,31 @@ def handle_poll_format(strategy, related, topic, format_name, recent_titles=None
         return None
 
     correct_index = None
-    if is_quiz:
-        correct_index = data.get("correct_index")
-        if not isinstance(correct_index, int) or not (0 <= correct_index < len(options)):
-            send_admin_message(
-                f"⚠️ کوییز امروز correct_index نامعتبر برگردوند ({correct_index!r}) — پست منتشر نشد."
-            )
-            return None
-        result = send_poll(question, options, is_quiz=True,
-                            correct_option_id=correct_index, explanation=data.get("explanation", ""))
-    else:
-        result = send_poll(question, options, is_quiz=False)
+    try:
+        if is_quiz:
+            correct_index = data.get("correct_index")
+            if not isinstance(correct_index, int) or not (0 <= correct_index < len(options)):
+                send_admin_message(
+                    f"⚠️ کوییز امروز correct_index نامعتبر برگردوند ({correct_index!r}) — پست منتشر نشد."
+                )
+                return None
+            result = send_poll(question, options, is_quiz=True,
+                                correct_option_id=correct_index, explanation=data.get("explanation", ""))
+        else:
+            result = send_poll(question, options, is_quiz=False)
+    except Exception as exc:
+        # Bug fix (#23): send_poll used to be called with no try/except
+        # anywhere in this function — unlike handle_image_format's
+        # graceful multi-level fallback, any failure here (Telegram
+        # rejecting the request after _post_with_retry's own retries are
+        # exhausted, or the new-in-this-fix immediate-raise on a
+        # Timeout — see telegram_bot.py's #14 fix) used to crash the
+        # entire run instead of gracefully skipping just today's poll.
+        send_admin_message(
+            f"⚠️ ارسالِ {fmt['label']} امروز شکست خورد: {exc}\nاین دور پستی منتشر نشد."
+        )
+        print(f"handle_poll_format: send_poll failed for {format_name} —", exc)
+        return None
 
     quiz_text = format_quiz_for_extra_channels(
         question, options, is_quiz=is_quiz, explanation=data.get("explanation", "") or "",
@@ -268,6 +360,10 @@ def handle_image_format(memory, strategy, related, topic, format_name, extra_not
     caption = generate_reviewed_text(memory, strategy, related, topic, format_name,
                                       extra_note=extra_note,
                                       campaign_note=campaign_note, profile_note=profile_note)
+    if caption is None:
+        # generate_reviewed_text already alerted the admin with the specific
+        # reason — nothing worth generating an image for.
+        return None, None, None, None
 
     scene_prompt = build_scene_prompt(topic["topic"])
     scene_sentence = _review_scene_sentence(generate_content(scene_prompt))
@@ -355,6 +451,10 @@ def handle_voice_format(memory, strategy, related, topic, format_name, extra_not
     script = generate_reviewed_text(memory, strategy, related, topic, format_name,
                                      extra_note=extra_note,
                                      campaign_note=campaign_note, profile_note=profile_note)
+    if script is None:
+        # generate_reviewed_text already alerted the admin with the specific
+        # reason — nothing worth generating audio (or posting as text) for.
+        return None, None, None, None
 
     ogg_bytes = None
     message_id = None
@@ -381,8 +481,23 @@ def handle_voice_format(memory, strategy, related, topic, format_name, extra_not
         return (script, "published", extra_results, message_id)
 
     print("handle_voice_format: voice generation/delivery unavailable this run, posting text instead.")
-    result = send_message(script)
-    message_id = (result or {}).get("result", {}).get("message_id")
+    # Bug fix (#27): this last-resort text fallback — reached only once
+    # BOTH the TTS call and send_voice have already failed — used to be
+    # the one call in this whole function with no try/except, unlike its
+    # two siblings just above. If this specific send_message call failed
+    # (network error, Telegram rejecting the HTML), the exception used to
+    # propagate uncaught and crash the entire run, defeating the point of
+    # having a "safety net under the safety net" text fallback at all.
+    try:
+        result = send_message(script)
+        message_id = (result or {}).get("result", {}).get("message_id")
+    except Exception as exc:  # noqa: BLE001 — this IS the last resort; it must not crash the run either
+        send_admin_message(
+            f"⚠️ فرمت «{FORMATS[format_name]['label']}» امروز نه صدا و نه حتی نسخه‌ی متنی‌ش منتشر شد: {exc}\n"
+            f"متن آماده بود ولی ارسالش هم شکست خورد — این دور پستی منتشر نشد."
+        )
+        print("handle_voice_format: even the text fallback's send_message failed:", exc)
+        return None, None, None, None
     extra_results = broadcast_extra_channels(script)
     return (script, "published", extra_results, message_id)
 
@@ -431,7 +546,12 @@ def _try_recap_image(recap_titles, caption):
 
 
 def _select_topic(memory, format_name, theme_category=None):
-    """Return (topic, extra_note, invented_idiom_mode).
+    """Return (topic, extra_note, invented_idiom_mode, source). topic is
+    None if this format's eligible pool is completely empty AND it has no
+    "invent one" fallback (see below) — callers MUST check for that and
+    skip gracefully (see main()'s handling right after this is called),
+    the same way a poll/review failure is already handled, rather than
+    letting a bare None reach generate_reviewed_text/build_generation_prompt.
 
     Every format goes through the exact same get_next_topic call now —
     which topics are even candidates is decided by topic_selection._eligible
@@ -441,19 +561,43 @@ def _select_topic(memory, format_name, theme_category=None):
     preference within whatever pool a format is already restricted to; it
     can't override a format's declared eligibility.
 
-    The one thing that IS still format-specific here is what to do if a
-    format's eligible pool runs completely dry — illustrated_pun is the
-    only format this has ever happened to in practice (a finite curated
-    idiom list vs. a self-refilling topic pool), so it's the only one with
-    a fallback: let the model invent a fresh idiom on the spot rather than
-    stall the format entirely."""
+    illustrated_pun is the only format with an "invent one on the spot"
+    fallback when its pool runs dry — safe there because the format's own
+    review gate already re-checks whatever the model invents. Bug fix
+    (#29): every OTHER format used to have no fallback of any kind if
+    get_next_topic ever returned None for it — this function's own
+    docstring already flagged that as a real possibility ("illustrated_pun
+    is the only format this has ever happened to IN PRACTICE", not "the
+    only one that ever could"), and idiom_proverb_bridge is genuinely the
+    most exposed: its eligible pool is currently just 5 topics (see
+    research.py's #54/#57 fix for why that pool grows slowly), and
+    unlike illustrated_pun, "invent one on the spot" is specifically the
+    WRONG fallback for it — the whole point of requiring a verified
+    fa_equivalent is to never ask the model to invent or recall an
+    idiom/proverb pairing on its own. So instead of leaving topic=None to
+    crash deep inside prompt-building with an opaque TypeError, that case
+    is now surfaced here as a clear, checkable signal.
+    """
     extra_note = ""
     invented_idiom_mode = False
 
-    topic = get_next_topic(memory, format_name, theme_category=theme_category)
+    callback_topic = pending_vocab_spotlight_callback(memory, format_name)
+    if callback_topic is not None:
+        # This topic was already taught once (via vocab_spotlight) -- this
+        # is a deliberate follow-up, not a first-ever exposure, so it's
+        # tagged "review" for get_due_review_topic's stage purposes (see
+        # #36), same as any other genuine, intentional re-exposure.
+        extra_note = (
+            "این کلمه/عبارت رو چند روز پیش توی یه پست «واژه‌ی روز» معرفی کردیم؛ الان زمینه‌شه که "
+            "توی یه سناریوی طبیعی (نه یادآوریِ خشک) دوباره ببینیمش."
+        )
+        return callback_topic, extra_note, False, "review"
+
+    topic, source = get_next_topic(memory, format_name, theme_category=theme_category)
 
     if topic is None and format_name == "illustrated_pun":
         invented_idiom_mode = True
+        source = "fresh"
         topic = dict(INVENTED_IDIOM_TOPIC)
         extra_note = (
             "توی data/topics.json دیگه اصطلاح (Idiom) پوشش‌داده‌نشده‌ای باقی نمونده. "
@@ -461,18 +605,14 @@ def _select_topic(memory, format_name, theme_category=None):
             "تحت‌اللفظی و معنی واقعی داره خودت انتخاب کن و همون رو موضوع این پست کن."
         )
 
-    return topic, extra_note, invented_idiom_mode
+    return topic, extra_note, invented_idiom_mode, source
 
 
 def main():
     harvest_pending_polls()
     engagement_harvest.harvest_engagement_metrics()
 
-    fixed = remediate_stray_chars_in_db()
-    if fixed:
-        print("Remediated stray characters in posts:", fixed)
-
-    today_str = str(datetime.date.today())
+    today_str = clock.today_str()
     posted_today = count_posts_on_date(today_str)
     if posted_today >= POSTS_PER_DAY:
         print(
@@ -481,6 +621,21 @@ def main():
         )
         return
     slot_number = posted_today + 1  # 1-indexed: which run of today's POSTS_PER_DAY this is
+
+    # Bug fix (#6): remediate_stray_chars_in_db used to run unconditionally
+    # at the very top of main(), before the daily-cap check above — so
+    # even a catch-up cron run that was about to immediately no-op (the
+    # "posted_today >= POSTS_PER_DAY" case) still paid for a full
+    # SELECT-every-published-post-and-regex-scan-each-one pass, up to 6
+    # times a day, forever, as the channel grows. Moved to after the cap
+    # check (skipped entirely on a no-op run) and gated to slot_number==1
+    # (runs at most once per day even on a day that does post), matching
+    # its actual purpose as an occasional cleanup pass rather than
+    # something every single invocation needs to redo.
+    if slot_number == 1:
+        fixed = remediate_stray_chars_in_db()
+        if fixed:
+            print("Remediated stray characters in posts:", fixed)
 
     memory = load_json(MEMORY_PATH, {})
     migrate_covered_topics(memory)
@@ -496,9 +651,21 @@ def main():
     format_name, recap_preempted = resolve_today_format()
     fmt = FORMATS[format_name]
 
+    # Bug fix (#24): these three used to sit after the progress_recap and
+    # needs_poll branches' early returns, so any run whose format resolved
+    # to progress_recap or a poll/quiz skipped all three checks entirely.
+    # They're unconditional admin health-checks (a real, if imperfect,
+    # safety net for "the topic pool is running low" / "the story library
+    # is running low" / "the news feed looks dead") that have nothing to
+    # do with which format happens to run today, so they're now called
+    # right here, before any format-specific branch can return early.
+    maybe_alert_low_topic_supply(memory)
+    maybe_alert_low_story_supply(memory)
+    maybe_alert_news_health(memory)
+
     if recap_preempted:
         schedule = load_json(SCHEDULE_PATH, {})
-        weekday = datetime.date.today().strftime("%A")
+        weekday = clock.weekday_name()
         displaced = schedule.get(weekday, "micro_scene")
         send_admin_message(
             f"ℹ️ امروز به‌جای «{FORMATS.get(displaced, {}).get('label', displaced)}» "
@@ -514,6 +681,8 @@ def main():
         content = generate_reviewed_text(memory, strategy, [], topic, format_name,
                                           recap_titles=recap_titles,
                                           campaign_note=campaign_note, profile_note=profile_note)
+        if content is None:
+            return  # generate_reviewed_text already alerted the admin with the specific reason
 
         recap_image_result = _try_recap_image(recap_titles, content)
         if recap_image_result is None:
@@ -554,6 +723,7 @@ def main():
     reader_data = None
     news_item = None
     if slot_number > FRESH_TOPICS_PER_DAY:
+        todays_weekday_format = format_name  # captured before any rerouting below (bug #28)
         if fmt["needs_poll"] or fmt["needs_image"] or fmt.get("needs_voice"):
             format_name = DEFAULT_EXTRA_SLOT_FORMAT
             fmt = FORMATS[format_name]
@@ -578,8 +748,27 @@ def main():
         if reader_data is None:
             review_topic, review_stage, review_last_format = get_due_review_topic(memory)
             if review_topic:
-                format_name = "vocab_spotlight" if review_last_format == "spot_mistake" else "spot_mistake"
-                fmt = FORMATS[format_name]
+                review_format = "vocab_spotlight" if review_last_format == "spot_mistake" else "spot_mistake"
+                if review_format == todays_weekday_format:
+                    # Bug fix (#28): this alternation has no way to know
+                    # what slot 1 (an earlier, separate invocation of
+                    # main() today) already posted — if today's weekday
+                    # format happens to be the SAME format the alternation
+                    # would pick, the result is the same format twice in
+                    # one day, exactly like the existing needs_poll/image/
+                    # voice guard above already prevents. Confirmed this
+                    # already happened once in the shipped sample data
+                    # (data/campaign_state.json: "spot_mistake" used twice
+                    # on 2026-07-28, a real Tuesday whose scheduled format
+                    # is spot_mistake). Reroute the same way the guard
+                    # above does, and let the topic stay due for the next
+                    # slot that has room for it instead.
+                    format_name = DEFAULT_EXTRA_SLOT_FORMAT
+                    fmt = FORMATS[format_name]
+                    review_topic = None
+                else:
+                    format_name = review_format
+                    fmt = FORMATS[format_name]
             else:
                 news_item = news.fetch_news_item(memory)
                 if news_item:
@@ -587,12 +776,29 @@ def main():
                     fmt = FORMATS[format_name]
 
     if fmt["needs_poll"]:
-        recent_titles = [row[0] for row in get_recent_posts(limit=7)]
+        recent_rows = get_recent_posts(limit=7)
+        recent_titles = [row[0] for row in recent_rows]
         if not recent_titles:
             print("هنوز پستی برای ساختن کوییز/نظرسنجی از روش وجود نداره؛ این دور رد می‌شه.")
             return
-        topic = {"topic": recent_titles[0], "level": "-", "category": "Review"}
-        related = search_related_posts(topic["topic"])
+        # Bug fix (#30): recent_titles[0] used to be used verbatim both as
+        # the review's "topic" AND as search_related_posts' search
+        # keyword. That breaks down when the most recent post was a
+        # reader_installment/news_relevel: their titles are long,
+        # compound strings (e.g. "The Ant and the Grasshopper — قسمت 2",
+        # or a full news headline) that are exceedingly unlikely to
+        # appear as a literal substring in any other post's title/
+        # keywords — search_related_posts' `LIKE '%...%'` match would
+        # come back empty, silently starving that day's poll prompt of
+        # any related-post context. Prefer the most recent title that
+        # ISN'T one of those two categories (get_recent_posts' category
+        # column, already fetched — no extra query needed); only fall
+        # back to recent_titles[0] verbatim if every one of the last 7
+        # posts happens to be a reader/news post.
+        review_worthy_titles = [row[0] for row in recent_rows if row[1] not in ("Reader", "News")]
+        topic_title = review_worthy_titles[0] if review_worthy_titles else recent_titles[0]
+        topic = {"topic": topic_title, "level": "-", "category": "Review"}
+        related = search_related_posts(topic_title)
 
         # Weakness 6 (sequential A/B testing) — quiz/vote_poll are the only
         # formats with a measurable outcome (a poll vote tally), so this is
@@ -604,7 +810,6 @@ def main():
             variant_label = experiments.assign_variant(active_exp)
             variant_note = experiments.variant_prompt_note(active_exp, variant_label)
             experiment_id = active_exp["id"]
-            experiments.record_assignment(experiment_id, variant_label)
 
         content = handle_poll_format(
             strategy, related, topic, format_name,
@@ -615,6 +820,19 @@ def main():
         )
         if content is None:
             return
+        # Bug fix (#26): record_assignment used to be called BEFORE
+        # handle_poll_format, unconditionally — so a poll that failed to
+        # generate/send (any of the several `return None` paths inside
+        # handle_poll_format) still permanently recorded a variant "use",
+        # silently skewing assign_variant's "fewest uses so far" balancing
+        # with a phantom assignment for a post that never actually went
+        # out. Moved to here, after handle_poll_format has already
+        # returned successfully — matching every other "record what just
+        # happened" call in this file (campaigns.record_post, analytics.
+        # record_text_post, save_post all already run after their post
+        # succeeds, not before).
+        if active_exp:
+            experiments.record_assignment(experiment_id, variant_label)
         title = f"{fmt['label']}: {', '.join(recent_titles[:3])}"
         save_post(date=today_str, format_name=format_name,
                    category="Review", level="-", title=title,
@@ -626,13 +844,10 @@ def main():
         print(f"پست منتشر شد ({format_name}).")
         return
 
-    maybe_alert_low_topic_supply(memory)
-    maybe_alert_low_story_supply(memory)
-    maybe_alert_news_health(memory)
-
     if reader_data is not None:
         story, chunk_index, chunk_text, is_final = reader_data
         invented_idiom_mode = False
+        source = "fresh"  # unused (reader chunks aren't topics.json entries; no coverage recorded)
         topic = {
             "topic": f"{story['title']} — قسمت {chunk_index + 1}",
             "level": story.get("level", "A1"),
@@ -649,6 +864,7 @@ def main():
         )
     elif news_item is not None:
         invented_idiom_mode = False
+        source = "fresh"  # unused (news items aren't topics.json entries; no coverage recorded)
         topic = {"topic": news_item["title"], "level": "A2", "category": "News"}
         extra_note = (
             "خلاصه‌ی یه خبر واقعی و تازه (با جمله‌های خودت و در سطح A1-A2 بازنویسی‌ش کن، جمله‌های منبع رو "
@@ -658,6 +874,7 @@ def main():
     elif review_topic:
         topic = review_topic
         invented_idiom_mode = False
+        source = "review"  # a genuine scheduled spaced-repetition review (bug #36)
         ordinal = {0: "بار اول", 1: "بار دوم", 2: "بار سوم", 3: "بار چهارم"}.get(review_stage, "چند بارِ قبل")
         extra_note = (
             f"این یه پست «مرور»ه، نه معرفی یه نکته‌ی کاملاً جدید — این نکته قبلاً آموزش داده شده "
@@ -665,12 +882,16 @@ def main():
             f"لحنش «یادته؟ بیا یه بار دیگه با یه مثال/زاویه‌ی تازه ببینیمش» باشه، نه معرفی از صفر."
         )
     else:
-        topic, extra_note, invented_idiom_mode = _select_topic(
+        topic, extra_note, invented_idiom_mode, source = _select_topic(
             memory, format_name, theme_category=campaign_state.get("theme_category"),
         )
     if not topic:
+        # Bug fix (#29): a format whose eligible pool is genuinely empty
+        # (and has no "invent one" fallback — see _select_topic's #29 fix)
+        # used to reach here with no way for the admin to tell WHICH
+        # format ran dry; now names it explicitly.
         send_admin_message(
-            "🔴 هیچ موضوعی در data/topics.json پیدا نشد — پستی منتشر نشد."
+            f"🔴 هیچ موضوعِ واجد شرایطی برای «{fmt['label']}» توی data/topics.json پیدا نشد — پستی منتشر نشد."
         )
         return
 
@@ -686,16 +907,22 @@ def main():
             extra_note=extra_note,
             campaign_note=campaign_note, profile_note=profile_note,
         )
+        if content is None:
+            return  # the caption never passed review; already alerted, nothing else to do
     elif fmt.get("needs_voice"):
         content, status, extra_results, message_id = handle_voice_format(
             memory, strategy, related, topic, format_name,
             extra_note=extra_note,
             campaign_note=campaign_note, profile_note=profile_note,
         )
+        if content is None:
+            return  # the script never passed review (or even the text fallback failed); already alerted
     else:
         content = generate_reviewed_text(memory, strategy, related, topic, format_name,
                                           extra_note=extra_note,
                                           campaign_note=campaign_note, profile_note=profile_note)
+        if content is None:
+            return  # generate_reviewed_text already alerted the admin with the specific reason
         result = send_message(content)
         message_id = (result or {}).get("result", {}).get("message_id")
         extra_results = broadcast_extra_channels(content)
@@ -738,13 +965,29 @@ def main():
     # them into covered_topic_history would just be noise that grows
     # memory.json forever without ever matching a real topic (get_next_topic
     # and get_due_review_topic only look up names that exist in
-    # topics.json). Their own state (reader.READING_KEY, news.NEWS_SEEN_KEY)
-    # already lives in this same memory dict, so memory.json still needs
-    # saving either way — just without the topic-history write.
+    # topics.json).
     if reader_data is None and news_item is None and not invented_idiom_mode:
-        record_topic_coverage(memory, topic["topic"], format_name, today_str)
-    if reader_data is not None or news_item is not None or not invented_idiom_mode:
-        save_json(MEMORY_PATH, memory)
+        record_topic_coverage(memory, topic["topic"], format_name, today_str, source=source)
+
+    # NEW FIX (found while wiring up #36): this save used to be
+    # conditional — `if reader_data is not None or news_item is not None
+    # or not invented_idiom_mode:` — which was written to skip an
+    # "unnecessary" write on the one path with nothing new to persist
+    # (invented_idiom_mode with no reader_data/news_item, since that's
+    # also exactly when record_topic_coverage above is skipped). But
+    # several things earlier in this same run can mutate `memory` in ways
+    # that have NOTHING to do with which branch ran: maybe_alert_low_
+    # topic_supply / maybe_alert_low_story_supply's alerted-flags, and
+    # news.health_alert_needed's failure-streak/alerted-flag, are all
+    # mutated unconditionally near the top of this function, every run.
+    # The old condition could silently discard any of those mutations
+    # exactly when invented_idiom_mode was true with no reader/news —
+    # e.g. news.health_alert_needed marking a streak "already alerted"
+    # would be lost, and the very next run would alert the admin again
+    # for a problem it was already told about. Saving unconditionally
+    # costs one small JSON write; not saving risked silently losing
+    # real state.
+    save_json(MEMORY_PATH, memory)
 
     print(f"پست منتشر شد ({format_name}): {topic['topic']}")
 
@@ -809,10 +1052,12 @@ if __name__ == "__main__":
         # failed either way.
         try:
             send_admin_message(
-                f"🔴 اجرای امروز کلاً با خطا شکست خورد و هیچ پستی منتشر نشد: {exc}\n"
+                f"🔴 اجرای امروز کلاً با خطا شکست خورد: {exc}\n"
                 f"این با هشدارهای معمولی (مثل کمبود موضوع) فرق داره — این یعنی خودِ پایپ‌لاین "
-                f"مشکل داره (مثلاً quota، یا یه خطای غیرمنتظره). لاگ اجرا رو توی "
-                f"تب Actions گیت‌هاب چک کن."
+                f"مشکل داره (مثلاً quota، یا یه خطای غیرمنتظره).\n"
+                f"⚠️ توجه: این خطا ممکنه بعد از ارسال موفق پست به تلگرام/ایتا/بله رخ داده باشه "
+                f"(مثلاً توی مرحله‌ی ثبت/آنالیتیکس) — لطفاً قبل از فکر کردن به «امروز پستی نرفت»، "
+                f"خودِ کانال رو چک کن. لاگ اجرا رو توی تب Actions گیت‌هاب هم ببین."
             )
         except Exception as alert_exc:
             print("Also failed to send the admin failure alert:", alert_exc)
