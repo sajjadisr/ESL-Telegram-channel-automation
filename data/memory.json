@@ -166,6 +166,12 @@
       "topic": "Family: grandfather",
       "format": "spot_mistake",
       "date": "2026-08-11"
+    },
+    {
+      "topic": "Under the weather",
+      "format": "illustrated_pun",
+      "date": "2026-08-12",
+      "source": "fresh"
     }
   ],
   "avoid": [
@@ -194,5 +200,7 @@
     "https://www.bbc.co.uk/news/articles/ceqewxjjn5zo?at_medium=RSS&at_campaign=rss"
   ],
   "news_consecutive_failures": 0,
-  "news_health_alerted": false
+  "news_health_alerted": false,
+  "topic_supply_alerted": false,
+  "story_supply_alerted": true
 }
