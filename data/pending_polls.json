@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "message_id": 64,
+    "question": "خیلیا این اصطلاح کاربردی رو اشتباه معنی می‌کنن! اگه امروز یکم بی‌حال باشی و حالت خوب نباشه، چطور توی جمله اینو می‌گی؟\n\n\"I'm feeling a bit ________ today.\"",
+    "is_quiz": true,
+    "correct_index": 0,
+    "sent_date": "2026-08-14",
+    "first_attempt_date": "2026-08-14",
+    "retry_count": 0,
+    "theme_category": "Vocabulary",
+    "topic_category": "Idioms",
+    "experiment_id": "hook_style_v1",
+    "variant_label": "statement_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    }
+  }
+]
