@@ -381,9 +381,22 @@ def build_generation_prompt(memory, strategy, related_posts, topic, format_name,
     # string check, matching this codebase's own stated design principle
     # (topic_selection._eligible's docstring) that adding a new format
     # should never mean "add another hardcoded branch here".
+    # Bug fix (this session): topic_is_lexical_item can now also be set on
+    # the TOPIC itself (data/topics.json), not just the format — e.g.
+    # "Numbers and time" or "At the supermarket" are broad Vocabulary
+    # themes, not single boldable words/phrases, even though the formats
+    # that can draw them (voice_note, vocab_spotlight, ...) default to
+    # expecting a single item. The topic-level value wins when set; same
+    # override precedence as build_review_prompt below, and for the same
+    # reason — generation telling the model to bold a theme name while
+    # review no longer requires it would just be a mismatched, confusing
+    # signal instead of a fix.
+    effective_lexical = topic.get("topic_is_lexical_item")
+    if effective_lexical is None:
+        effective_lexical = fmt.get("topic_is_lexical_item", True)
     salience_block = ""
     single_item_block = ""
-    if fmt.get("topic_is_lexical_item", True):
+    if effective_lexical:
         salience_block = TARGET_SALIENCE.format(topic_text=topic["topic"])
         single_item_block = SINGLE_ITEM_FOCUS
 
@@ -489,8 +502,23 @@ REVIEW_RULES = [
 ]
 
 
-def build_review_prompt(content, format_name, topic_text=None):
+def build_review_prompt(content, format_name, topic_text=None, topic_is_lexical_item=None):
+    """topic_is_lexical_item, when given (not None), overrides the format's
+    own default for this one call. Needed because whether a topic is a
+    single boldable word/phrase (e.g. "Color: red") vs. a broad theme
+    (e.g. "Numbers and time", "Travel vocabulary") is a property of the
+    TOPIC, not the FORMAT — the same format (voice_note, vocab_spotlight,
+    ...) draws both kinds from topics.json. Without this, a broad-theme
+    topic paired with a format that defaults topic_is_lexical_item=True
+    gets stuck forever: rules 9/10 below demand the topic text itself
+    appear bolded exactly once, which a natural-sounding script can't do
+    for a theme name, so review never passes, the post never publishes,
+    the topic never gets marked covered, and it's selected again next
+    time unchanged (see topic_selection.get_next_topic — always returns
+    the first not-yet-covered eligible topic, deterministically)."""
     fmt = FORMATS[format_name]
+    if topic_is_lexical_item is not None:
+        fmt = {**fmt, "topic_is_lexical_item": topic_is_lexical_item}
     applicable = [text for cond, text in REVIEW_RULES if cond(fmt)]
     checklist = "\n".join(
         f"{_persian_numeral(i + 1)}. {text.format(topic_text=topic_text)}"

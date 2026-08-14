@@ -3,6 +3,7 @@ import json
 import re
 import time
 
+import httpx
 import requests
 from google import genai
 from google.genai import errors as genai_errors
@@ -11,6 +12,22 @@ from google.genai import types
 from config import (
     GEMINI_API_KEY, GEMINI_API_KEY_BACKUP,
     GROQ_API_KEY, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN,
+)
+
+# Every genai call in this file is wrapped in one of these two tuples so a
+# failure gets the same retry/fallback treatment regardless of which layer
+# raised it. genai_errors.* covers Gemini API errors the google-genai SDK
+# recognized and wrapped; httpx.TransportError covers everything below
+# that layer — timeouts, connection resets, DNS failures — which the SDK
+# does NOT wrap and which otherwise propagate straight out of every
+# except clause below, uncaught, crashing the whole run (seen in
+# production: an httpx.ReadTimeout on _HTTP_OPTIONS' own 30s deadline
+# bubbled all the way out of main() with zero retries, no fallback to the
+# backup key or Groq, and no admin alert — just a bare traceback in the
+# Actions log).
+_TRANSIENT_API_ERRORS = (
+    genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError,
+    httpx.TransportError,
 )
 
 
@@ -95,7 +112,7 @@ def _try_one_client(label, client_label, client, attempt_fn):
     for attempt in range(1, MAX_API_ATTEMPTS + 1):
         try:
             return attempt_fn(client)
-        except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+        except _TRANSIENT_API_ERRORS as exc:
             if _is_auth_error(exc):
                 print(f"{label}: auth error on the {client_label} (not retrying this key): {exc}")
                 raise _ClientExhausted(exc, is_auth=True) from exc
@@ -356,8 +373,7 @@ def generate_content(prompt):
     Groq isn't configured or also fails — see that class's docstring."""
     try:
         return _call_model(DRAFT_MODEL, prompt)
-    except (GeminiAuthError, genai_errors.ServerError, genai_errors.ClientError,
-            genai_errors.APIError) as exc:
+    except (GeminiAuthError, *_TRANSIENT_API_ERRORS) as exc:
         print(f"generate_content: Gemini failed ({exc}); trying Groq fallback.")
         fallback = _call_groq(prompt)
         if fallback is not None:
@@ -377,8 +393,7 @@ def generate_content_smart(prompt):
     Groq isn't configured or also fails — see that class's docstring."""
     try:
         return _call_model(REVIEW_MODEL, prompt)
-    except (GeminiAuthError, genai_errors.ServerError, genai_errors.ClientError,
-            genai_errors.APIError) as exc:
+    except (GeminiAuthError, *_TRANSIENT_API_ERRORS) as exc:
         print(f"generate_content_smart: Gemini failed ({exc}); trying Groq fallback.")
         fallback = _call_groq(prompt)
         if fallback is not None:
@@ -462,8 +477,7 @@ def generate_grounded_json(prompt, fallback=None):
     """
     try:
         raw = _call_model_grounded(GROUNDING_MODEL, prompt)
-    except (GeminiAuthError, genai_errors.ServerError, genai_errors.ClientError,
-            genai_errors.APIError) as exc:
+    except (GeminiAuthError, *_TRANSIENT_API_ERRORS) as exc:
         print("generate_grounded_json: model call failed, using fallback:", exc)
         return fallback
 
@@ -513,8 +527,7 @@ def embed_text(text):
         return list(embeddings[0].values)
     try:
         return _call_with_fallback("embed_text", _attempt)
-    except (GeminiAuthError, genai_errors.ServerError, genai_errors.ClientError,
-            genai_errors.APIError) as exc:
+    except (GeminiAuthError, *_TRANSIENT_API_ERRORS) as exc:
         print(f"embed_text: every configured client failed ({exc}); skipping "
               f"(dedup degrades gracefully).")
         return None
@@ -569,7 +582,7 @@ def generate_image(prompt):
     day instead of surfacing the real, fixable cause to the admin alert."""
     try:
         image_bytes = _generate_image_with_model(IMAGE_MODEL, prompt)
-    except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+    except _TRANSIENT_API_ERRORS as exc:
         print(f"generate_image: {IMAGE_MODEL} unavailable after retries ({exc}).")
         image_bytes = None
 
@@ -579,7 +592,7 @@ def generate_image(prompt):
     print(f"generate_image: falling back to {FALLBACK_IMAGE_MODEL}.")
     try:
         image_bytes = _generate_image_with_model(FALLBACK_IMAGE_MODEL, prompt)
-    except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+    except _TRANSIENT_API_ERRORS as exc:
         print(f"generate_image: fallback model {FALLBACK_IMAGE_MODEL} also failed "
               f"after retries: {exc}")
         image_bytes = None
@@ -683,7 +696,7 @@ def generate_speech(text):
     the admin alert, not disappear into a silent per-format fallback."""
     try:
         pcm = _generate_speech_with_model(TTS_MODEL, text)
-    except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+    except _TRANSIENT_API_ERRORS as exc:
         print(f"generate_speech: {TTS_MODEL} unavailable after retries ({exc}).")
         pcm = None
 
@@ -693,7 +706,7 @@ def generate_speech(text):
     print(f"generate_speech: falling back to {FALLBACK_TTS_MODEL}.")
     try:
         pcm = _generate_speech_with_model(FALLBACK_TTS_MODEL, text)
-    except (genai_errors.ServerError, genai_errors.ClientError, genai_errors.APIError) as exc:
+    except _TRANSIENT_API_ERRORS as exc:
         print(f"generate_speech: fallback model {FALLBACK_TTS_MODEL} also failed after retries: {exc}")
         pcm = None
 

@@ -1,4 +1,8 @@
 google-genai==2.14.0
+httpx==0.28.1  # already pulled in transitively by google-genai, but ai.py
+               # now imports it directly (to catch httpx.TransportError —
+               # see ai.py's _TRANSIENT_API_ERRORS) so it's pinned here too,
+               # rather than relying on google-genai's own dependency range.
 requests==2.32.3
 feedparser==6.0.11
 Pillow==11.0.0

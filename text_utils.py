@@ -14,6 +14,24 @@ _TAG_TOKEN = re.compile(rf"<(?P<close>/)?(?P<name>{_KNOWN_TAGS})(?:\s[^>]*)?>", 
 _MAX_TRIM_ITERATIONS = 5
 
 
+def escape_html(text):
+    """Escape &, <, > so arbitrary text (model output, review feedback,
+    exception messages) can't be misread as markup by Telegram's HTML
+    parser when spliced into a parse_mode=HTML message.
+
+    Telegram only requires these three characters escaped outside of
+    actual tags (core.telegram.org/bots/api#html-style); order matters —
+    '&' has to go first or it would double-escape the entities this same
+    call just produced for '<' and '>'.
+
+    Use this on any *dynamic* fragment (an f-string variable), never on
+    a whole message that's expected to contain real formatting tags —
+    e.g. weekly_strategy.py's report header hardcodes an intentional
+    <b>...</b> and must NOT be passed through this."""
+    text = str(text)
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _open_tags_at_end(text):
     """Which known tags are still open (unclosed) at the end of `text`,
     innermost-last, by walking every open/close token in order."""

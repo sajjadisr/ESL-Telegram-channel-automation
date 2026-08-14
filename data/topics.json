@@ -7,7 +7,8 @@
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Daily routine words"
+    "topic": "Daily routine words",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
@@ -17,7 +18,8 @@
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Food and restaurant vocabulary"
+    "topic": "Food and restaurant vocabulary",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
@@ -62,7 +64,8 @@
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Numbers and time"
+    "topic": "Numbers and time",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
@@ -72,7 +75,8 @@
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Travel vocabulary"
+    "topic": "Travel vocabulary",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
@@ -87,7 +91,8 @@
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Weather and seasons"
+    "topic": "Weather and seasons",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
@@ -177,7 +182,8 @@
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Clothes and shopping vocabulary"
+    "topic": "Clothes and shopping vocabulary",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
@@ -242,67 +248,80 @@
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "House and furniture vocabulary"
+    "topic": "House and furniture vocabulary",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Jobs and occupations"
+    "topic": "Jobs and occupations",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Hobbies and free time"
+    "topic": "Hobbies and free time",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Emotions and feelings"
+    "topic": "Emotions and feelings",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Animals"
+    "topic": "Animals",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "City places and giving directions"
+    "topic": "City places and giving directions",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Sports vocabulary"
+    "topic": "Sports vocabulary",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Technology and phones"
+    "topic": "Technology and phones",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Health and going to the doctor"
+    "topic": "Health and going to the doctor",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "School and classroom objects"
+    "topic": "School and classroom objects",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Days of the week"
+    "topic": "Days of the week",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Months of the year"
+    "topic": "Months of the year",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Money and prices"
+    "topic": "Money and prices",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
@@ -428,92 +447,110 @@
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Greetings and introductions"
+    "topic": "Greetings and introductions",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "At the supermarket"
+    "topic": "At the supermarket",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Ordering at a cafe"
+    "topic": "Ordering at a cafe",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Asking for directions"
+    "topic": "Asking for directions",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Public transport"
+    "topic": "Public transport",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "At the bank"
+    "topic": "At the bank",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "At the pharmacy"
+    "topic": "At the pharmacy",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Making phone calls"
+    "topic": "Making phone calls",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Describing people"
+    "topic": "Describing people",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",
     "category": "Vocabulary",
-    "topic": "Describing your home"
+    "topic": "Describing your home",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Job interview basics"
+    "topic": "Job interview basics",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "At the airport"
+    "topic": "At the airport",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "At the hotel"
+    "topic": "At the hotel",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Small talk about weather"
+    "topic": "Small talk about weather",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Making plans with friends"
+    "topic": "Making plans with friends",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Apologizing and thanking"
+    "topic": "Apologizing and thanking",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Expressing likes and dislikes"
+    "topic": "Expressing likes and dislikes",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A2",
     "category": "Vocabulary",
-    "topic": "Talking about the past weekend"
+    "topic": "Talking about the past weekend",
+    "topic_is_lexical_item": false
   },
   {
     "level": "A1",

@@ -32,6 +32,7 @@ from topic_selection import (
     remaining_topic_count, record_topic_coverage, pending_vocab_spotlight_callback,
 )
 from topic_generation import generate_and_append_topics
+from text_utils import escape_html
 import campaigns
 import audience_profile
 import experiments
@@ -190,7 +191,10 @@ def generate_reviewed_text(memory, strategy, related, topic, format_name,
         sentence/scenario under a topic with an unrelated name or category
         (see embeddings.py's module docstring for the concrete incident
         this fixes). Returns (ok, review, stray_chars, dup_title)."""
-        review = review_content(build_review_prompt(text, format_name, topic_text=topic.get("topic")))
+        review = review_content(build_review_prompt(
+            text, format_name, topic_text=topic.get("topic"),
+            topic_is_lexical_item=topic.get("topic_is_lexical_item"),
+        ))
         stray = find_stray_script_chars(text)
         dup_title, _dup_score = embeddings.check_semantic_duplicate(text)
         ok = review.get("ok") is True and not stray and dup_title is None
@@ -232,7 +236,7 @@ def generate_reviewed_text(memory, strategy, related, topic, format_name,
         )
         send_admin_message(
             f"⚠️ پستِ «{FORMATS[format_name]['label']}» امروز بعد از {MAX_REVIEW_ATTEMPTS + 1} تلاش هم "
-            f"از مرحله‌ی بازبینی رد نشد و منتشر نشد: {reason}\n"
+            f"از مرحله‌ی بازبینی رد نشد و منتشر نشد: {escape_html(reason)}\n"
             f"لازم نیست کاری بکنی — این دور فقط پستی منتشر نشد، فردا دوباره تلاش می‌شه."
         )
         print(f"generate_reviewed_text: giving up on {format_name} after "
@@ -263,8 +267,8 @@ def handle_poll_format(strategy, related, topic, format_name, recent_titles=None
         data = generate_json(prompt, strict=True)
     except Exception as exc:
         send_admin_message(
-            f"⚠️ ساخت {fmt['label']} امروز شکست خورد (پاسخ مدل قابل‌تفسیر نبود یا خطای API داشت): {exc}\n"
-            f"این دور پستی منتشر نشد؛ لازم نیست کاری بکنی، فقط برای اطلاع."
+            f"⚠️ ساخت {fmt['label']} امروز شکست خورد (پاسخ مدل قابل‌تفسیر نبود یا خطای API داشت): "
+            f"{escape_html(exc)}\nاین دور پستی منتشر نشد؛ لازم نیست کاری بکنی، فقط برای اطلاع."
         )
         print(f"handle_poll_format: giving up for {format_name} —", exc)
         return None
@@ -291,7 +295,8 @@ def handle_poll_format(strategy, related, topic, format_name, recent_titles=None
             correct_index = data.get("correct_index")
             if not isinstance(correct_index, int) or not (0 <= correct_index < len(options)):
                 send_admin_message(
-                    f"⚠️ کوییز امروز correct_index نامعتبر برگردوند ({correct_index!r}) — پست منتشر نشد."
+                    f"⚠️ کوییز امروز correct_index نامعتبر برگردوند "
+                    f"({escape_html(repr(correct_index))}) — پست منتشر نشد."
                 )
                 return None
             result = send_poll(question, options, is_quiz=True,
@@ -307,7 +312,7 @@ def handle_poll_format(strategy, related, topic, format_name, recent_titles=None
         # Timeout — see telegram_bot.py's #14 fix) used to crash the
         # entire run instead of gracefully skipping just today's poll.
         send_admin_message(
-            f"⚠️ ارسالِ {fmt['label']} امروز شکست خورد: {exc}\nاین دور پستی منتشر نشد."
+            f"⚠️ ارسالِ {fmt['label']} امروز شکست خورد: {escape_html(exc)}\nاین دور پستی منتشر نشد."
         )
         print(f"handle_poll_format: send_poll failed for {format_name} —", exc)
         return None
@@ -498,8 +503,8 @@ def handle_voice_format(memory, strategy, related, topic, format_name, extra_not
         message_id = (result or {}).get("result", {}).get("message_id")
     except Exception as exc:  # noqa: BLE001 — this IS the last resort; it must not crash the run either
         send_admin_message(
-            f"⚠️ فرمت «{FORMATS[format_name]['label']}» امروز نه صدا و نه حتی نسخه‌ی متنی‌ش منتشر شد: {exc}\n"
-            f"متن آماده بود ولی ارسالش هم شکست خورد — این دور پستی منتشر نشد."
+            f"⚠️ فرمت «{FORMATS[format_name]['label']}» امروز نه صدا و نه حتی نسخه‌ی متنی‌ش منتشر شد: "
+            f"{escape_html(exc)}\nمتن آماده بود ولی ارسالش هم شکست خورد — این دور پستی منتشر نشد."
         )
         print("handle_voice_format: even the text fallback's send_message failed:", exc)
         return None, None, None, None
@@ -1022,7 +1027,7 @@ if __name__ == "__main__":
         try:
             send_admin_message(
                 "🔴 اجرای امروز شکست خورد: نه Gemini جواب داد، نه fallback رایگان Groq.\n\n"
-                f"{exc}\n\n"
+                f"{escape_html(exc)}\n\n"
                 "برای رفع:\n"
                 "۱) توی Google AI Studio پیشوند کلید Gemini رو چک کن — اگر با AQ. شروع "
                 "میشه (به‌جای AIza)، احتمالاً همون مشکل قدیمیه.\n"
@@ -1044,7 +1049,7 @@ if __name__ == "__main__":
         try:
             send_admin_message(
                 "🔴 اجرای امروز شکست خورد: خطای احراز هویت Gemini (نه quota، نه شبکه).\n\n"
-                f"{exc}\n\n"
+                f"{escape_html(exc)}\n\n"
                 "این معمولاً یعنی گوگل کلید رو به فرمت جدید «AQ.» تغییر داده (به‌جای «AIza»)، "
                 "و اون فرمت جدید فعلاً توسط API رد میشه — حتی از طریق SDK رسمی.\n\n"
                 "برای رفع:\n"
@@ -1070,7 +1075,7 @@ if __name__ == "__main__":
         # failed either way.
         try:
             send_admin_message(
-                f"🔴 اجرای امروز کلاً با خطا شکست خورد: {exc}\n"
+                f"🔴 اجرای امروز کلاً با خطا شکست خورد: {escape_html(exc)}\n"
                 f"این با هشدارهای معمولی (مثل کمبود موضوع) فرق داره — این یعنی خودِ پایپ‌لاین "
                 f"مشکل داره (مثلاً quota، یا یه خطای غیرمنتظره).\n"
                 f"⚠️ توجه: این خطا ممکنه بعد از ارسال موفق پست به تلگرام/ایتا/بله رخ داده باشه "

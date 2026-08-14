@@ -27,6 +27,21 @@ _LOW_CORRECT_RATE = 40
 MAX_PENDING_POLL_RETRIES = 5
 MAX_PENDING_POLL_DAYS = 7
 
+# Bug fix (this session): a poll used to get stop_poll()'d the moment the
+# *next* daily_post.yml trigger fired — harvest_pending_polls() runs
+# unconditionally at the very top of main(), and with 3 primary + 3
+# catch-up cron slots ~5-6 hours apart, that meant every poll closed for
+# good just a few hours after posting, regardless of how few subscribers
+# had a realistic chance to see and vote on it yet. This module's own
+# docstring above says results are only meaningful "a day or more after
+# it was sent" — but nothing ever actually enforced that; the retry/
+# age-out constants above only govern what happens once a close ATTEMPT
+# has already failed, not when the first attempt is allowed to happen.
+# MIN_POLL_OPEN_DAYS gates that: a poll is left alone (still_pending,
+# no stop_poll call at all) until it's no longer the same calendar day
+# it was sent on.
+MIN_POLL_OPEN_DAYS = 1
+
 
 def save_pending_poll(message_id, question, is_quiz=False, correct_index=None,
                        theme_category=None, topic_category=None,
@@ -77,6 +92,19 @@ def harvest_pending_polls():
     for entry in pending:
         entry.setdefault("retry_count", 0)
         entry.setdefault("first_attempt_date", entry.get("sent_date") or clock.today_str())
+
+        # Don't even attempt to close a poll until it's been open at
+        # least MIN_POLL_OPEN_DAYS — see the constant's comment above.
+        # No retry_count bump here: this isn't a failed attempt, it's
+        # deliberately not attempting yet.
+        try:
+            sent_date = datetime.date.fromisoformat(entry.get("sent_date") or "")
+            days_open = (clock.today() - sent_date).days
+        except ValueError:
+            days_open = MIN_POLL_OPEN_DAYS  # no/malformed sent_date on an old entry — don't block it forever, just proceed as usual
+        if days_open < MIN_POLL_OPEN_DAYS:
+            still_pending.append(entry)
+            continue
 
         result = stop_poll(entry["message_id"])
         if not result or not result.get("ok"):

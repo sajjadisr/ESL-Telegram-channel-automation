@@ -8,6 +8,7 @@ from ai import generate_json
 from prompts import FORMATS, build_strategy_prompt
 from schedule_builder import build_engagement_schedule, diff_schedule
 from telegram_bot import send_admin_message
+from text_utils import escape_html
 import analytics
 import audience_profile
 import experiments
@@ -123,7 +124,7 @@ def main():
     ok, reason = validate_strategy(new_strategy)
     if not ok:
         send_admin_message(
-            f"⚠️ به‌روزرسانی استراتژی هفتگی رد شد — خروجی مدل معتبر نبود: {reason}\n"
+            f"⚠️ به‌روزرسانی استراتژی هفتگی رد شد — خروجی مدل معتبر نبود: {escape_html(reason)}\n"
             f"استراتژی قبلی نگه داشته شد."
         )
         print("Strategy validation failed:", reason, new_strategy)
