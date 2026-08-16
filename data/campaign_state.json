@@ -1,5 +1,11 @@
 {
   "week_start": "2026-08-15",
   "theme_category": "Grammar",
-  "posts_this_week": []
+  "posts_this_week": [
+    {
+      "date": "2026-08-16",
+      "format": "progress_recap",
+      "title": "Progress recap"
+    }
+  ]
 }
