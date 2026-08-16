@@ -81,10 +81,22 @@ FORMATS = {
         # needing to know illustrated_pun exists (content-pipeline-
         # architecture.md §5).
         "category_filter": "Idioms",
+        # Fix (2026-08-16, same gap as progress_recap/vocab_spotlight/
+        # voice_note above): this format's guidance never said "in
+        # English" either. Unlike progress_recap it never got flagged in
+        # send_admin_message's review-rejection history, but the actual
+        # published posts (data/posts.jsonl, e.g. 2026-08-12 and
+        # 2026-08-05) show the same anti-pattern LANGUAGE_BALANCE warns
+        # against: a full Persian sentence sets the scene, a short
+        # English line or two sits in the middle, then the closing line
+        # is Persian again — the narrative frame, not just the idiom
+        # line, needs to carry the English.
         "guidance": (
             "این فرمت فقط برای اصطلاحاتی جواب می‌ده که فاصله‌ی واضحی بین معنی تحت‌اللفظی و معنی واقعی دارن "
             "(مثل break the ice، piece of cake، under the weather). کپشن رو کوتاه نگه دار (۳ تا ۵ خط) — خود "
-            "تصویر قراره جوک رو حمل کنه، متن فقط توضیح کوتاهش می‌ده."
+            "تصویر قراره جوک رو حمل کنه، متن فقط توضیح کوتاهش می‌ده. طبق قانون تعادل زبان بالا، خودِ صحنه/"
+            "دیالوگِ کوتاهی که اصطلاح توش میاد باید به انگلیسیِ ساده نوشته بشه (نه یه مقدمه‌ی فارسی که یه "
+            "خط انگلیسی وسطش قایم شده)؛ فارسی فقط برای گلاسِ اصطلاح و حداکثر یه جمله‌ی گرمِ پایانی مجازه."
         ),
     },
     "spot_mistake": {
@@ -93,10 +105,27 @@ FORMATS = {
         "needs_poll": None,
         "use_tiers": False,
         "category_filter": ["Common mistakes", "Persian transfer errors"],
+        # Fix (2026-08-16, same gap as progress_recap/vocab_spotlight/
+        # voice_note/illustrated_pun above): checked the actual published
+        # posts (data/posts.jsonl) rather than assuming from the guidance
+        # text alone — nearly every spot_mistake post so far (e.g.
+        # 2026-08-10, 2026-08-11 x2, 2026-08-07) opens with a full
+        # Persian scene-setting paragraph ("یادته...", "سارا با تعجب
+        # نگاه می‌کنه و می‌گه...") around a single English target
+        # sentence — exactly the "Persian narration with one English
+        # sentence hidden inside" pattern LANGUAGE_BALANCE calls out by
+        # name. This format has apparently been passing review anyway,
+        # which is itself a separate, unconfirmed signal worth watching
+        # (see ai.py's quota/provider tracking, added the same day) —
+        # but the guidance gap is real and worth closing regardless of
+        # why review let it through.
         "guidance": (
             "یه جمله‌ی غلط بساز که دقیقاً همون اشتباه رایجیه که فارسی‌زبان‌ها موقع استفاده از این نکته می‌کنن. "
             "جمله‌ی غلط رو نشون بده، بعد جواب درست + یه توضیح خیلی کوتاه رو داخل یه تگ <tg-spoiler>...</tg-spoiler> "
-            "بذار تا تا قبل از تپ‌کردن پنهون بمونه."
+            "بذار تا تا قبل از تپ‌کردن پنهون بمونه. طبق قانون تعادل زبان بالا، صحنه/دیالوگِ دورِ جمله‌ی هدف "
+            "(نه فقط خودِ جمله‌ی غلط/درست) هم باید به انگلیسیِ ساده نوشته بشه — یه راوی یا شخصیت که به انگلیسی "
+            "حرف می‌زنه یا فکر می‌کنه، نه یه مقدمه‌چینیِ فارسی («یادته...»، «سارا با تعجب می‌گه...») که فقط "
+            "جمله‌ی هدف انگلیسیه. فارسی فقط برای گلاسِ کلمات سخت و متنِ داخل <tg-spoiler> مجازه."
         ),
     },
     "vocab_spotlight": {

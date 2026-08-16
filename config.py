@@ -364,6 +364,23 @@ READER_LIBRARY_PATH = "data/reader_library.json"
 # alert-only.
 LOW_STORY_WARNING_THRESHOLD = 2
 
+# --- Gemini quota/provider tracking (ai.py) ----------------------------------
+# Added 2026-08-16 to close #90 in PROJECT_STATUS.md ("no dedicated
+# quota-tracking/warning code"). A lightweight per-day counter of which
+# provider (Gemini vs. the Groq fallback — see ai._call_groq) actually
+# served each DRAFT_MODEL/REVIEW_MODEL call, so a day that leans on Groq
+# more than usual is visible in data/ instead of only inferable from
+# review-rejection anecdotes. Deliberately a plain JSON counter file, not
+# folded into data/memory.json: it's rewritten on every single model call
+# (far higher write frequency than memory.json's per-run save), and
+# keeping it separate means a bug here can never risk corrupting the
+# actual channel memory.
+QUOTA_TRACKING_PATH = "data/quota_tracking.json"
+# REVIEW_MODEL's free tier (see ai.py's DRAFT_MODEL/REVIEW_MODEL comment).
+# Not enforced client-side (Gemini itself is the source of truth on the
+# actual limit) — used only to word the admin alert with real numbers.
+GEMINI_REVIEW_DAILY_FREE_QUOTA = 20
+
 # --- Real news, re-leveled (news.py) ----------------------------------------
 # RSS, not an API: no credential to expire, get rate-limited, or need
 # billing attention — the only failure mode is "is the internet reachable",

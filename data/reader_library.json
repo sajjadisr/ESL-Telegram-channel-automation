@@ -20,5 +20,38 @@
       "The race begins. The hare runs very fast, and soon he is far ahead of the tortoise. He looks back and sees the tortoise walking slowly, far behind. The hare thinks: 'I have so much time. I can rest a little under this tree.' He lies down in the cool shade and closes his eyes, just for a minute. But the minute becomes an hour, and the hare falls asleep. The tortoise keeps walking, slowly and steadily, one step after another.",
       "The tortoise walks past the sleeping hare without stopping. He does not run, but he does not stop either. Finally, the hare wakes up. He looks around and sees the tortoise is almost at the river! The hare jumps up and runs as fast as he can, but it is too late — the tortoise reaches the river first and wins the race. All the animals cheer. The hare learns an important lesson that day: slow and steady can win the race, and being fast means nothing if you don't finish."
     ]
+  },
+  {
+    "id": "lion_and_mouse",
+    "title": "شیر و موش (The Lion and the Mouse)",
+    "level": "A1",
+    "source_note": "Aesop's fable — public domain, retold at A1-A2 by the model.",
+    "chunks": [
+      "A big lion is sleeping under a tree. A small mouse runs over the lion's nose. The lion wakes up and catches the mouse with one big paw. \"Please, let me go!\" says the mouse. \"One day, I can help you.\" The lion laughs. \"You? Help me? You are so small!\" But the lion is kind today, so he opens his paw. The little mouse runs away, fast and happy.",
+      "Some weeks later, hunters come to the forest. They put a big net between the trees. The lion does not see the net, and he walks right into it. The net is very strong. The lion pulls and pulls, but he cannot get free. He is stuck, and he is scared. He makes a loud, sad sound. All the other animals hear it, but nobody comes to help.",
+      "The little mouse hears the lion's sad sound too. He remembers the lion's kindness, so he runs to the net. \"Don't worry, my friend!\" says the mouse. \"I can help you now.\" The mouse has small, sharp teeth. He bites the ropes of the net, one by one. After some time, there is a big hole in the net, and the lion is free! \"Thank you, little friend,\" says the lion. \"You are small, but you are strong too.\" Now they both understand: even a small friend can be a big help."
+    ]
+  },
+  {
+    "id": "shepherd_boy_and_wolf",
+    "title": "پسر چوپان و گرگ (The Boy Who Cried Wolf)",
+    "level": "A1",
+    "source_note": "Aesop's fable — public domain, retold at A1-A2 by the model.",
+    "chunks": [
+      "A young boy watches sheep on a hill every day. His job is easy, but it is a little boring. One afternoon, he has an idea. He runs down to the village and shouts, \"Wolf! Wolf! A wolf is eating the sheep!\" All the people in the village stop their work. They run up the hill with sticks to help him. But when they arrive, there is no wolf. The boy laughs. \"I'm just joking!\" he says. The people are angry, but they walk back to the village.",
+      "A few days later, the boy plays the same joke again. He runs to the village and shouts, \"Wolf! Wolf! Help me!\" Again, the tired villagers run up the hill. Again, there is no wolf — only the boy, laughing at them. \"You cannot fool us again!\" says one villager. \"This is not funny anymore.\" The boy just smiles and goes back to his sheep, and he does not think about tomorrow.",
+      "The next day, a real wolf comes out of the forest. It is big and hungry, and it looks at the sheep. The boy is very scared now. He runs to the village and shouts, \"Wolf! Wolf! Please, come and help me! This time it's real!\" But the villagers hear his voice and just shake their heads. \"We know this joke,\" they say, and nobody comes. The wolf takes many sheep that day. The boy learns an important lesson: when you tell a lie many times, people stop believing you — even when you tell the truth."
+    ]
+  },
+  {
+    "id": "fox_and_grapes",
+    "title": "روباه و انگور (The Fox and the Grapes)",
+    "level": "A1",
+    "source_note": "Aesop's fable — public domain, retold at A1-A2 by the model.",
+    "chunks": [
+      "A hungry fox is walking through a garden. She has not eaten all day, and her stomach makes a loud sound. Suddenly, she sees something wonderful: a tall vine with many purple grapes. The grapes look big, sweet, and juicy. \"Perfect!\" thinks the fox. \"Grapes for my dinner!\" She walks under the vine and looks up. The grapes hang high above her head.",
+      "The fox jumps up to reach the grapes, but she cannot touch them. She tries again, jumping even higher this time. Still, her mouth is far from the fruit. She steps back, runs fast, and jumps one more time with all her strength. But again, she misses. The grapes are simply too high for her. She tries five, six, seven times, but nothing works. She is tired now, and a little embarrassed too — she hopes nobody is watching.",
+      "Finally, the fox stops jumping. She looks up at the grapes one last time and says, \"Those grapes are probably sour anyway. I don't even want them.\" She turns around and walks away, holding her head up high, like she doesn't care at all. But everyone knows the real reason: it is much easier to say you don't want something than to admit you simply couldn't get it."
+    ]
   }
 ]

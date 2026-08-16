@@ -5,7 +5,7 @@ import clock
 from config import (
     MEMORY_PATH, STRATEGY_PATH, SCHEDULE_PATH,
     RECAP_EVERY_N_POSTS, LOW_TOPIC_WARNING_THRESHOLD, AUTO_GENERATE_TOPIC_COUNT,
-    POSTS_PER_DAY, FRESH_TOPICS_PER_DAY,
+    POSTS_PER_DAY, FRESH_TOPICS_PER_DAY, GEMINI_REVIEW_DAILY_FREE_QUOTA,
 )
 from database import (
     save_post, search_related_posts, context_posts_for_generation, count_posts,
@@ -14,7 +14,7 @@ from database import (
 from memory import load_json, save_json
 from ai import (
     generate_content, generate_json, review_content, find_stray_script_chars,
-    generate_image, GeminiAuthError, AllTextProvidersFailedError,
+    generate_image, GeminiAuthError, AllTextProvidersFailedError, get_quota_snapshot,
 )
 from prompts import (
     FORMATS, build_generation_prompt, build_review_prompt, build_poll_prompt,
@@ -62,6 +62,7 @@ INVENTED_IDIOM_TOPIC = {
 
 TOPIC_SUPPLY_ALERTED_KEY = "topic_supply_alerted"
 STORY_SUPPLY_ALERTED_KEY = "story_supply_alerted"
+QUOTA_ALERT_DATE_KEY = "quota_pressure_alert_date"
 
 
 def maybe_alert_low_topic_supply(memory):
@@ -144,6 +145,62 @@ def maybe_alert_news_health(memory):
             f"یا یه چیز دیگه شبکه‌ای بلوکش کرده. تا وقتی درست نشه، این فرمت بی‌سروصدا رد می‌شه و "
             f"جای اون از استخر موضوعات عادی استفاده می‌شه — یه نگاه بنداز."
         )
+
+
+def maybe_alert_quota_pressure(memory):
+    """Alerts once per calendar day the first time this run notices the
+    REVIEW_MODEL tier (quality review, poll/quiz generation, and weekly
+    strategy — see generate_content_smart's own docstring) fell back to
+    Groq at least once today (see ai.get_quota_snapshot /
+    ai._record_provider_call). That fallback firing at all means Gemini's
+    REVIEW_MODEL free tier (config.GEMINI_REVIEW_DAILY_FREE_QUOTA/day)
+    was exhausted or unreachable for at least one call today — worth
+    knowing because a review pass done by the Groq fallback instead of
+    Gemini has not been confirmed to enforce the same rules (e.g.
+    LANGUAGE_BALANCE) as reliably; see the 2026-08-15 progress_recap
+    incident this was added alongside (#90 in PROJECT_STATUS.md).
+
+    Unlike maybe_alert_low_topic_supply/maybe_alert_low_story_supply, the
+    underlying condition here resets every day on its own (a fresh
+    quota), so this doesn't need a "recovered" rearm branch — it just
+    checks whether today's date already has an alert recorded and, if
+    not, sends one and stamps today's date.
+
+    Deliberately called alongside the other three health-checks near the
+    TOP of main(), not after this run's own generation — not because it
+    only needs prior-run data (ai._record_provider_call writes
+    QUOTA_TRACKING_PATH unconditionally on every call, independent of
+    main.py's control flow entirely), but because several branches below
+    this point return early without reaching the end of main() (see the
+    several `if content is None: return` sites after a permanently-
+    failed review) and thus never reach save_json(MEMORY_PATH, memory) —
+    a pre-existing gap, not introduced here (worth a real fix
+    separately: the cleanest one is probably wrapping main()'s whole body
+    so the memory save always happens on the way out, not threading a
+    save through every early return by hand). Placing this check at the
+    top, like its three siblings, means it always runs once per
+    invocation regardless of that gap — at worst a fallback used on the
+    day's LAST scheduled run is only surfaced on the next day's first
+    run, which is an acceptable delay for a non-urgent informational
+    alert."""
+    snapshot = get_quota_snapshot()
+    groq_smart_calls = snapshot.get("groq_smart_calls", 0)
+    if groq_smart_calls < 1:
+        return
+    today = clock.today_str()
+    if memory.get(QUOTA_ALERT_DATE_KEY) == today:
+        return
+    gemini_smart_calls = snapshot.get("gemini_smart_calls", 0)
+    send_admin_message(
+        f"⚠️ امروز {groq_smart_calls} بار (از مجموع {gemini_smart_calls + groq_smart_calls} تلاش) "
+        f"لایه‌ی «هوشمند» (بازبینیِ کیفیت، کوییز/نظرسنجی، یا استراتژی هفتگی) به‌جای Gemini از fallback "
+        f"رایگان Groq استفاده کرد — یعنی سهمیه‌ی رایگان روزانه‌ی Gemini برای این لایه "
+        f"({GEMINI_REVIEW_DAILY_FREE_QUOTA} درخواست) امروز یه‌جا تموم شده یا موقتاً در دسترس نبوده. "
+        f"مرحله‌ی بازبینی وقتی با Groq انجام شده ممکنه قوانین (مثل تعادل زبان) رو کمتر دقیق چک کرده "
+        f"باشه — لازم نیست کاری بکنی، فقط برای اطلاع؛ اگه این هشدار زیاد تکرار شد، یعنی وقتشه یا "
+        f"POSTS_PER_DAY/تعداد retry بازبینی رو کم کنی، یا یه اکانت Gemini دومی (GEMINI_API_KEY_BACKUP) اضافه کنی."
+    )
+    memory[QUOTA_ALERT_DATE_KEY] = today
 
 
 def resolve_today_format():
@@ -682,6 +739,7 @@ def main():
     maybe_alert_low_topic_supply(memory)
     maybe_alert_low_story_supply(memory)
     maybe_alert_news_health(memory)
+    maybe_alert_quota_pressure(memory)
 
     if recap_preempted:
         schedule = load_json(SCHEDULE_PATH, {})

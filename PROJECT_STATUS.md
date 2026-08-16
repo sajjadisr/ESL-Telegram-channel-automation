@@ -6,7 +6,7 @@ verified against the actual current code in this delivery (diff against
 the original upload, AST parsing, grep, and direct test execution) —
 not from memory or prior chat summaries.
 
-**Counts: 71 Completed · 6 Partially completed · 22 Not started · 2 Cannot verify/fix from here.**
+**Counts: 72 Completed · 5 Partially completed · 22 Not started · 2 Cannot verify/fix from here.**
 
 Numbering matches the original report exactly (sections A–Q, #1–#101).
 
@@ -85,6 +85,7 @@ the reasoning.
 | 85 | Hardcoded "weekly" quiz label | channels.py |
 | 86 | Weekday lookup was locale-dependent | main.py, clock.py |
 | 89 | Test suite didn't cover reader_installment/news_relevel exclusion | test_schedule_builder.py |
+| 90 | No dedicated quota-tracking/warning code — added 2026-08-16, see "Post-handoff progress" | ai.py, config.py, main.py |
 | 92 | Stale "121" count in a docstring | topic_selection.py |
 | 94 | `EITAA_CHANNEL_ID`/`BALE_CHAT_ID` inconsistent defaults | config.py |
 
@@ -122,7 +123,6 @@ the reasoning.
 |---|---|---|---|
 | 71 | Root-cause code fix done (#36: `source` field distinguishes recycle from fresh/review) | The *existing* stale `story_installment` entries in `data/memory.json` were never relabeled/removed — they still lack a `source` field and default to counting toward stage under the fix's backward-compat rule | data/memory.json (untouched) |
 | 74 | Code fix done (#57/#58) | The 5 existing unverified topics in `data/topics.json` still show `fa_equivalent_source: null` — actually re-verifying them requires running `scripts/enrich_idiom_proverbs.py` against a live, search-grounded Gemini call, which this sandbox cannot do (no network/API access) | data/topics.json (unchanged), scripts/enrich_idiom_proverbs.py (fixed) |
-| 90 | Indirectly mitigated — #34's fix removes the specific wasted-retry cause it described | No dedicated quota-tracking/warning code added | ai.py (none) |
 | 91 | Added a one-time-per-process log reminder | Can't actually verify voice quality — needs a human to listen | ai.py |
 | 93 | Core fix done: `config.CHANNEL_DISPLAY_NAME` exists; `PERSONA`, `build_review_prompt`, `build_topic_prompt` (prompts.py) and the vote-poll fallback (channels.py) all use it now | `scripts/send_onboarding_message.py` (1 occurrence) and `scripts/send_cross_promo.py` (8 occurrences) still hardcode the literal `@InEnglish` | scripts/send_onboarding_message.py, scripts/send_cross_promo.py |
 | 98/99/100 | N/A — see Not Started | — | — |
@@ -166,6 +166,61 @@ The following previously not-started items have now been addressed in this sessi
 `#39`, `#41`, `#42`, `#43`, `#61-64`, `#65`, `#69`, `#70`, `#75`, `#77`, `#82`, `#83`, `#98`, `#99`, `#100`.
 
 The remaining pending items are `#38`, `#84`, `#87`, `#88`, `#96`, `#97`, and `#101`.
+
+### 2026-08-16 session
+
+Triggered by a live incident: `progress_recap` deadlocked Aug 12–15 (three
+straight review failures on `LANGUAGE_BALANCE`, and because it's
+scheduled by post-count not weekday, the stuck recap blocked every
+subsequent post too). Fixed same-day (`prompts.py`, commit `f5a2966`) and
+confirmed unblocked — `progress_recap` published successfully on
+2026-08-16.
+
+Follow-up work in this session:
+
+- **#90 (quota tracking) — now done**, not just indirectly mitigated.
+  `ai.py` records which provider (Gemini vs. the Groq fallback) served
+  each `DRAFT_MODEL`/`REVIEW_MODEL` call in `data/quota_tracking.json`
+  (`get_quota_snapshot`), and `main.maybe_alert_quota_pressure` pings the
+  admin the first time a day sees the REVIEW_MODEL tier fall back to
+  Groq — including `review_content` itself, since it goes through the
+  same `generate_content_smart` path. That fallback firing means the
+  quality gate for the rest of that day may have been evaluated by a
+  different, unverified model, not just that a draft was written by one
+  — worth surfacing on its own, and it also finally gives the
+  quota-pressure theory below a real data trail instead of relying on
+  guesswork after the fact.
+- **`illustrated_pun` and `spot_mistake`** had the identical
+  never-said-"in English" gap `progress_recap` had. Fixed the same way
+  (`prompts.py`), but for a different reason than `progress_recap`:
+  these two hadn't triggered a visible review-rejection, but the actual
+  *published* posts (`data/posts.jsonl`) already showed the
+  Persian-narration-with-one-English-sentence anti-pattern
+  `LANGUAGE_BALANCE` warns against — so the fix here is pre-emptive for
+  the deadlock mechanism, but corrective for actual content quality
+  already live on the channel. Why this was passing review at all
+  despite the violation is unconfirmed — plausibly the same
+  quota-pressure/Groq-review effect #90's fix now instruments.
+- **Groq fallback quality (previously "just a theory")** — not resolved,
+  but no longer unconfirmable: #90's instrumentation is the concrete
+  next step the prior session flagged. `_call_groq` sends the identical
+  prompt text with no explicit temperature/sampling config on either
+  side, so nothing in the code itself points to a specific divergence
+  yet — the more actionable finding from reading `ai.py` closely is
+  structural, not a prompt/temperature difference: any call routed
+  through `generate_content_smart` (review, poll/quiz, weekly strategy)
+  shares one fallback path, so REVIEW_MODEL quota pressure silently
+  affects the reviewer, not just the drafter.
+- **`data/reader_library.json` restocked** — it wasn't merely low as the
+  prior session's summary said; both existing stories (`ant_and_
+  grasshopper`, `tortoise_and_hare`) were already fully published as of
+  2026-08-01, so `reader_installment` had been returning nothing for two
+  weeks straight (confirmed via `reader.get_next_installment` against
+  the real `data/posts.db`, not just inspecting the JSON). Added three
+  new A1 fable retellings (`lion_and_mouse`, `shepherd_boy_and_wolf`,
+  `fox_and_grapes`, matching the existing 3-chunk/~70-100-words-per-chunk
+  shape) — verified `reader.get_next_installment` now resumes with
+  `lion_and_mouse` chunk 0 against the real database.
 
 ## Cannot verify / cannot fix from here (2)
 

@@ -9,10 +9,13 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
 
+import clock
 from config import (
     GEMINI_API_KEY, GEMINI_API_KEY_BACKUP,
     GROQ_API_KEY, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN,
+    QUOTA_TRACKING_PATH,
 )
+from memory import load_json, save_json
 
 # Every genai call in this file is wrapped in one of these two tuples so a
 # failure gets the same retry/fallback treatment regardless of which layer
@@ -365,6 +368,47 @@ def _call_model(model_name, prompt):
     return _call_with_fallback(f"Gemini call to {model_name}", _attempt)
 
 
+def _record_provider_call(tier, provider):
+    """Persist a per-day counter of which provider actually served a
+    DRAFT_MODEL ("draft") or REVIEW_MODEL ("smart") call — see
+    config.QUOTA_TRACKING_PATH. Pure instrumentation: a failure here must
+    never break a real generation call, so every exception is swallowed
+    (after printing) rather than propagated.
+
+    Added 2026-08-16 for #90 (PROJECT_STATUS.md: "no dedicated
+    quota-tracking/warning code") and to give the live-incident theory
+    from that day's session — that Gemini's REVIEW_MODEL 20/day free tier
+    gets exhausted and silently pushes generation (and the quality-review
+    pass itself, since review_content also goes through
+    generate_content_smart) onto Groq — an actual data trail instead of
+    remaining unconfirmed. Deliberately keyed by calendar date in the
+    channel's own timezone (clock.today_str()), same as every other
+    per-day counter in this codebase (see database.count_posts_on_date),
+    not a rolling 24h window."""
+    try:
+        today = clock.today_str()
+        data = load_json(QUOTA_TRACKING_PATH, {})
+        if data.get("date") != today:
+            data = {"date": today}
+        key = f"{provider}_{tier}_calls"
+        data[key] = data.get(key, 0) + 1
+        save_json(QUOTA_TRACKING_PATH, data)
+    except Exception as exc:  # noqa: BLE001 -- instrumentation must never break a real call
+        print(f"_record_provider_call: failed to persist quota tracking ({exc}); continuing.")
+
+
+def get_quota_snapshot():
+    """Today's provider-call counts (see _record_provider_call), or {} if
+    nothing has been recorded yet today. Read by main.py's
+    maybe_alert_quota_pressure — kept as a function here (not main.py
+    reading QUOTA_TRACKING_PATH directly) so the file's shape stays this
+    module's own concern, same as reader.py/news.py expose functions
+    instead of letting main.py touch their data files raw."""
+    today = clock.today_str()
+    data = load_json(QUOTA_TRACKING_PATH, {})
+    return data if data.get("date") == today else {}
+
+
 def generate_content(prompt):
     """Drafting calls. Cheap/high-quota tier — safe to call repeatedly.
 
@@ -372,11 +416,14 @@ def generate_content(prompt):
     has failed for this call. Raises AllTextProvidersFailedError only if
     Groq isn't configured or also fails — see that class's docstring."""
     try:
-        return _call_model(DRAFT_MODEL, prompt)
+        result = _call_model(DRAFT_MODEL, prompt)
+        _record_provider_call("draft", "gemini")
+        return result
     except (GeminiAuthError, *_TRANSIENT_API_ERRORS) as exc:
         print(f"generate_content: Gemini failed ({exc}); trying Groq fallback.")
         fallback = _call_groq(prompt)
         if fallback is not None:
+            _record_provider_call("draft", "groq")
             return fallback
         raise AllTextProvidersFailedError(
             f"Both Gemini and the Groq fallback failed to generate content: {exc}"
@@ -392,11 +439,14 @@ def generate_content_smart(prompt):
     has failed for this call. Raises AllTextProvidersFailedError only if
     Groq isn't configured or also fails — see that class's docstring."""
     try:
-        return _call_model(REVIEW_MODEL, prompt)
+        result = _call_model(REVIEW_MODEL, prompt)
+        _record_provider_call("smart", "gemini")
+        return result
     except (GeminiAuthError, *_TRANSIENT_API_ERRORS) as exc:
         print(f"generate_content_smart: Gemini failed ({exc}); trying Groq fallback.")
         fallback = _call_groq(prompt)
         if fallback is not None:
+            _record_provider_call("smart", "groq")
             return fallback
         raise AllTextProvidersFailedError(
             f"Both Gemini and the Groq fallback failed to generate content: {exc}"
