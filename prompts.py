@@ -105,9 +105,16 @@ FORMATS = {
         "needs_poll": None,
         "use_tiers": True,
         "category_filter": ["Vocabulary", "Phrasal verbs"],
+        # Fix (live incident, 2026-08-15): same gap as progress_recap below
+        # — never explicitly said "in English", unlike micro_scene/
+        # reader_installment/news_relevel. Already failed review for it
+        # once in production (Aug 12, "نورافکن واژگان": mostly Persian
+        # narration, English limited to a few words).
         "guidance": (
-            "یه کلمه یا عبارت رو معرفی کن، معنیش رو بگو، و توی یه جمله‌ی خیلی ساده و روزمره نشونش بده. این "
-            "پست قراره زمینه رو برای یه صحنه یا اصطلاح آینده آماده کنه، پس ساده و مستقیم نگهش دار."
+            "یه کلمه یا عبارت رو معرفی کن، معنیش رو بگو، و توی یه جمله‌ی خیلی ساده و روزمره نشونش بده. جمله‌ی "
+            "نمونه باید به انگلیسیِ ساده باشه (نه فارسی) — طبق قانون تعادل زبان بالا، فارسی فقط برای معنیِ خودِ "
+            "کلمه، کوتاه و داخل پرانتز، مجازه. این پست قراره زمینه رو برای یه صحنه یا اصطلاح آینده آماده کنه، "
+            "پس ساده و مستقیم نگهش دار."
         ),
     },
     "idiom_proverb_bridge": {
@@ -154,9 +161,29 @@ FORMATS = {
         "needs_poll": None,
         "use_tiers": False,
         "topic_is_lexical_item": False,  # reviews a whole list of past titles, not one item
+        # Fix (live incident, 2026-08-15): every other format's guidance
+        # either says "in simple English" outright (micro_scene,
+        # reader_installment, news_relevel) or describes a task that's
+        # structurally English by nature. This one never said it, and
+        # unlike the others, its own input (recap_titles below) is a list
+        # of past post titles that are themselves a Persian/English mix —
+        # so the last thing the model reads before drafting is Persian-
+        # leaning material, not just LANGUAGE_BALANCE stated many lines
+        # earlier. Result: this format kept generating mostly-Persian
+        # recaps, failing REVIEW_RULES' language-balance check on all 3
+        # attempts, every single time it came up — and because it's
+        # scheduled by post-count (RECAP_EVERY_N_POSTS), not weekday, a
+        # stuck recap blocks every subsequent run too, since the count
+        # never advances. Confirmed via the review rejection reason
+        # recorded in send_admin_message's history: "بیشتر متن به زبان
+        # فارسی روایت شده و بخش انگلیسی آن بسیار ناچیز است."
         "guidance": (
             "لیست موضوعات هفته‌های اخیر (پایین اومده) رو به یه پست کوتاه و گرم تبدیل کن — «این چند هفته با هم "
-            "چی یاد گرفتیم» — نه یه لیست خشک، با یه جمله‌ی تشویقی در پایان."
+            "چی یاد گرفتیم» — نه یه لیست خشک، با یه جمله‌ی تشویقی در پایان. طبق قانون تعادل زبان بالا، بدنه‌ی "
+            "اصلیِ این پست (جمله‌هایی که موضوعات رو مرور می‌کنن) باید به انگلیسیِ ساده نوشته بشه، نه فارسی — "
+            "حتی اگه عنوان بعضی از موضوعات لیست‌شده پایین‌تر فارسی یا ترکیبیه، خودت با انگلیسیِ ساده بهشون "
+            "اشاره کن (مثلاً «we learned about family words like mother and father»، نه روایت فارسی از "
+            "همون موضوع). فارسی فقط برای همون یکی-دو جمله‌ی گرم/تشویقی مجازه، دقیقاً طبق قانون تعادل زبان."
         ),
     },
     "quiz": {
@@ -245,13 +272,18 @@ FORMATS = {
         # better; this one only earns its slot on content where hearing it
         # is the actual point.
         "category_filter": ["Persian transfer errors", "Vocabulary", "Phrasal verbs"],
+        # Fix (live incident, 2026-08-15): same gap as progress_recap and
+        # vocab_spotlight above. Already failed review for it four times in
+        # production (Aug 13, "پیام صوتی": mostly Persian narration each
+        # time, occasionally stacked with other issues in the same rejection).
         "guidance": (
             "این یه اسکریپت برای یه پیام صوتیه، نه یه پست متنی معمولی — قراره با صدای واقعی خونده بشه، پس "
             "طبیعی و گفتاری بنویس، نه برای خوندن با چشم. روی تلفظ تمرکز کن: کلمه یا عبارت مورد نظر رو حداقل "
             "دوبار واضح و آروم تکرار کن، بعد توی یه جمله‌ی کوتاه و طبیعی به‌کارش ببر و اون جمله رو هم بیار. "
-            "اگه این دقیقاً همون چیزیه که فارسی‌زبان‌ها معمولاً اشتباه تلفظ می‌کنن، مستقیم بهش اشاره کن "
-            "(«خیلیا اینو اینجوری میگن... ولی تلفظ درستش اینه»). کوتاه نگهش دار — حدود ۷۰ تا ۱۰۰ کلمه، یعنی "
-            "۳۰ تا ۴۵ ثانیه گفتار."
+            "خودِ کلمه/عبارت هدف و جمله‌ی مثال باید انگلیسی باشن، طبق قانون تعادل زبان بالا — فارسی فقط برای "
+            "جمله‌های کوتاه توضیحی/تشویقیِ اطرافش مجازه. اگه این دقیقاً همون چیزیه که فارسی‌زبان‌ها معمولاً "
+            "اشتباه تلفظ می‌کنن، مستقیم بهش اشاره کن («خیلیا اینو اینجوری میگن... ولی تلفظ درستش اینه»). "
+            "کوتاه نگهش دار — حدود ۷۰ تا ۱۰۰ کلمه، یعنی ۳۰ تا ۴۵ ثانیه گفتار."
         ),
     },
 }
