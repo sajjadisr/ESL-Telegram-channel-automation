@@ -172,6 +172,12 @@
       "format": "illustrated_pun",
       "date": "2026-08-12",
       "source": "fresh"
+    },
+    {
+      "topic": "It's raining cats and dogs",
+      "format": "illustrated_pun",
+      "date": "2026-08-19",
+      "source": "fresh"
     }
   ],
   "avoid": [
@@ -202,5 +208,5 @@
   "news_consecutive_failures": 0,
   "news_health_alerted": false,
   "topic_supply_alerted": false,
-  "story_supply_alerted": true
+  "story_supply_alerted": false
 }
