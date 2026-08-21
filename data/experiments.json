@@ -17,7 +17,8 @@
     "assigned_variants": [
       "statement_hook",
       "direct_question_hook",
-      "statement_hook"
+      "statement_hook",
+      "direct_question_hook"
     ]
   }
 ]
