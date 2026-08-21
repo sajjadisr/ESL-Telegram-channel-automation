@@ -207,5 +207,5 @@
   "news_consecutive_failures": 0,
   "news_health_alerted": false,
   "topic_supply_alerted": false,
-  "story_supply_alerted": false
+  "story_supply_alerted": true
 }
