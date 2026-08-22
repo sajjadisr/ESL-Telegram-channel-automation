@@ -1,6 +1,10 @@
 {
   "weak_categories": [],
-  "strong_categories": [],
-  "quiz_accuracy_history": [],
-  "avg_quiz_accuracy": null
+  "strong_categories": [
+    "Idioms"
+  ],
+  "quiz_accuracy_history": [
+    100.0
+  ],
+  "avg_quiz_accuracy": 100.0
 }

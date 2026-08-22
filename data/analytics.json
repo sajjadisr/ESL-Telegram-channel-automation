@@ -1053,5 +1053,24 @@
     "views": null,
     "forwards": null,
     "reactions": null
+  },
+  {
+    "date": "2026-08-22",
+    "question": "کدوم کلمه برای کامل کردن این جمله درسته؟\n\n\"______ raining cats and dogs today!\"",
+    "format": "quiz",
+    "is_quiz": true,
+    "vote_count": 1,
+    "rolling_avg_votes_before_this_post": 0.0,
+    "correct_rate": 100.0,
+    "reward_score": 0.75,
+    "experiment_id": "hook_style_v1",
+    "variant_label": "direct_question_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 67,
+    "views": null,
+    "forwards": null
   }
 ]
