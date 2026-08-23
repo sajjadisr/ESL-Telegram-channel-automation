@@ -184,6 +184,12 @@
       "format": "vocab_spotlight",
       "date": "2026-08-23",
       "source": "fresh"
+    },
+    {
+      "topic": "Numbers and time",
+      "format": "micro_scene",
+      "date": "2026-08-24",
+      "source": "review"
     }
   ],
   "avoid": [
