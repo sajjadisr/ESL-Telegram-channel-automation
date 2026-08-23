@@ -1072,5 +1072,25 @@
     "message_id": 67,
     "views": null,
     "forwards": null
+  },
+  {
+    "date": "2026-08-23",
+    "question": "Numbers and time",
+    "format": "vocab_spotlight",
+    "is_quiz": null,
+    "vote_count": null,
+    "rolling_avg_votes_before_this_post": null,
+    "correct_rate": null,
+    "reward_score": null,
+    "experiment_id": null,
+    "variant_label": null,
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 69,
+    "views": null,
+    "forwards": null,
+    "reactions": null
   }
 ]
