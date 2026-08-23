@@ -10,6 +10,7 @@ from config import (
 from database import (
     save_post, search_related_posts, context_posts_for_generation, count_posts,
     get_titles_for_recap, get_recent_posts, count_posts_on_date, remediate_stray_chars_in_db,
+    get_post_ids_for_story,
 )
 from memory import load_json, save_json
 from ai import (
@@ -214,11 +215,18 @@ def resolve_today_format():
 
 def generate_reviewed_text(memory, strategy, related, topic, format_name,
                             recap_titles=None, extra_note="",
-                            campaign_note="", profile_note=""):
+                            campaign_note="", profile_note="",
+                            dedup_exclude_ids=None):
     """Returns the finished, review-passing text, or None if it still
     fails review after MAX_REVIEW_ATTEMPTS retries — callers must treat
     None exactly like handle_poll_format's None: skip today's post
     gracefully, don't publish anything.
+
+    dedup_exclude_ids: optional set of post ids to leave out of the
+    semantic-duplicate check (embeddings.check_semantic_duplicate) — see
+    that function's Bug fix #92. reader_installment passes its own
+    story's earlier published chunks here, since those are SUPPOSED to
+    read as similar (same story) and would otherwise fail dedup forever.
 
     Bug fix (#25): this used to always return the last draft regardless of
     whether it ever actually passed review — even after every one of
@@ -253,7 +261,9 @@ def generate_reviewed_text(memory, strategy, related, topic, format_name,
             topic_is_lexical_item=topic.get("topic_is_lexical_item"),
         ))
         stray = find_stray_script_chars(text)
-        dup_title, _dup_score = embeddings.check_semantic_duplicate(text)
+        dup_title, _dup_score = embeddings.check_semantic_duplicate(
+            text, exclude_post_ids=dedup_exclude_ids,
+        )
         ok = review.get("ok") is True and not stray and dup_title is None
         return ok, review, stray, dup_title
 
@@ -999,9 +1009,19 @@ def main():
         if content is None:
             return  # the script never passed review (or even the text fallback failed); already alerted
     else:
+        # Bug fix (#92): a reader_installment chunk is a continuation of a
+        # specific story and is SUPPOSED to resemble that same story's
+        # earlier, already-published chunks — excluding them is what stops
+        # the semantic-dedup check from rejecting every future installment
+        # as "too similar to itself" (see database.get_post_ids_for_story
+        # and embeddings.check_semantic_duplicate for the full reasoning).
+        dedup_exclude_ids = (
+            get_post_ids_for_story(reader_data[0]["id"]) if reader_data is not None else None
+        )
         content = generate_reviewed_text(memory, strategy, related, topic, format_name,
                                           extra_note=extra_note,
-                                          campaign_note=campaign_note, profile_note=profile_note)
+                                          campaign_note=campaign_note, profile_note=profile_note,
+                                          dedup_exclude_ids=dedup_exclude_ids)
         if content is None:
             return  # generate_reviewed_text already alerted the admin with the specific reason
         result = send_message(content)

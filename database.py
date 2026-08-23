@@ -147,6 +147,37 @@ def get_last_published_chunk(story_id):
     return row[0] if row and row[0] is not None else None
 
 
+def get_post_ids_for_story(story_id):
+    """All post ids ever saved under this story_id (any status) — used by
+    main.generate_reviewed_text to exclude a story's own earlier
+    installments from the semantic-dedup comparison (embeddings.py).
+
+    Bug fix (#92): reader_installment chunks were being embedded and
+    compared against the FULL post-embeddings store with no awareness that
+    consecutive installments of the same story are SUPPOSED to be similar
+    to each other — same characters, same setting, same narrative voice,
+    by design (see reader.py's module docstring: the chunk text itself is
+    fixed ahead of time, not improvised). That made embeddings.py's
+    DEDUP_SIMILARITY_THRESHOLD (0.90) a near-certain false positive against
+    a story's own earlier chunk rather than a genuine cross-topic repeat,
+    and — because the underlying chunk text can't be reworded away from
+    "the same story" — every regenerate attempt in generate_reviewed_text's
+    retry loop failed identically, burning all MAX_REVIEW_ATTEMPTS and
+    skipping that day's post. Confirmed directly against production logs:
+    "شیر و موش (The Lion and the Mouse) — قسمت 1" was rejected as a
+    duplicate of itself across at least three separate days' worth of
+    attempts, each one a fresh installment of the SAME story that could
+    never pass no matter how it was reworded — a permanent stuck state for
+    that extra slot, not a transient one, since _reconciled_position (see
+    reader.py) always resumes the same unpublished chunk next time."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT id FROM posts WHERE story_id = ?", (story_id,)
+    ).fetchall()
+    conn.close()
+    return {row[0] for row in rows}
+
+
 def update_post_content(post_id, content):
     """Bug fix (durability): same reordering as save_post above -- the
     durable jsonl "update" record is written before the local SQLite

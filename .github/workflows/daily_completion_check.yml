@@ -6,11 +6,22 @@ name: Daily Completion Check
 
 on:
   schedule:
-    # ~23:35 Tehran — after slot 3 (21:12 Tehran) AND its catch-up (21:57
-    # Tehran) in daily_post.yml have both had their chance, so this only
-    # fires once the day's real opportunities are exhausted, not while a
-    # catch-up is still legitimately pending.
-    - cron: "5 20 * * *"
+    # Bug fix (#93): was "5 20 * * *" (20:05 UTC / 23:35 Tehran) — only 25
+    # minutes before Tehran midnight (20:30 UTC), the moment clock.py rolls
+    # "today" over to the next day. GitHub Actions' own documented
+    # scheduled-run delays routinely eat more than that: confirmed directly
+    # in production, the 20:05 UTC trigger actually started at 20:29-20:30
+    # UTC on back-to-back days — one run landing at 20:29:29 (still just
+    # inside the old day, a real, meaningful "0 posts today" alert) and the
+    # very next day's run landing at 20:30:05 (just PAST midnight Tehran),
+    # which made it silently evaluate the brand-new day that had only been
+    # alive for 5 seconds — a guaranteed, meaningless "0/3" alert about a
+    # day that never had a chance to post anything, not a real problem with
+    # the day before. Moved to 19:30 UTC (23:00 Tehran): a full 60-minute
+    # margin against that same class of delay, while still running safely
+    # after slot 3's catch-up (~21:57 Tehran / 18:27 UTC in daily_post.yml)
+    # has had its chance.
+    - cron: "30 19 * * *"
   workflow_dispatch: {}
 
 jobs:

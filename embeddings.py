@@ -140,24 +140,51 @@ def cosine_similarity(a, b):
     return dot / (norm_a * norm_b)
 
 
-def most_similar(vector, records):
+def most_similar(vector, records, exclude_post_ids=None):
     """records: the [(post_id, title, vector), ...] shape _load_records
     returns. Returns (title, score) for the closest match, or (None, 0.0)
-    if records is empty."""
+    if records is empty (or every record was excluded).
+
+    exclude_post_ids: optional set of post ids to skip entirely — see
+    check_semantic_duplicate's docstring (Bug fix #92) for why a caller
+    would ever want to exclude specific prior posts from its own dedup
+    check."""
+    exclude_post_ids = exclude_post_ids or ()
     best_title, best_score = None, 0.0
-    for _post_id, title, other_vector in records:
+    for post_id, title, other_vector in records:
+        if post_id in exclude_post_ids:
+            continue
         score = cosine_similarity(vector, other_vector)
         if score > best_score:
             best_title, best_score = title, score
     return best_title, best_score
 
 
-def check_semantic_duplicate(draft_text, threshold=DEDUP_SIMILARITY_THRESHOLD):
+def check_semantic_duplicate(draft_text, threshold=DEDUP_SIMILARITY_THRESHOLD, exclude_post_ids=None):
     """Returns (colliding_title, score) if `draft_text` is a near-duplicate
     of something already stored, or (None, score_of_closest_match)
     otherwise (score is 0.0 if there's nothing stored yet, or if the
     embedding call itself failed — both are "nothing to compare against",
     handled identically by the caller).
+
+    exclude_post_ids: optional set/iterable of post ids to leave out of the
+    comparison entirely.
+
+    Bug fix (#92): reader_installment (and any other serialized,
+    fixed-content format) needs this — consecutive installments of the
+    same story are SUPPOSED to be similar to each other (same characters,
+    setting, narrative voice; see reader.py's module docstring), so
+    without an exclusion, a story's own earlier chunk was the single
+    likeliest thing for a new chunk to collide with, and unlike a genuine
+    cross-topic repeat, that collision can never be fixed by rewording —
+    the source chunk text is fixed ahead of time. That turned into a
+    permanent per-story stuck state: every future run resumes the same
+    unpublished chunk (see reader._reconciled_position), fails semantic
+    dedup against that same story's already-published chunk again, and
+    skips the post — confirmed directly in production logs, the same
+    story rejected as "too similar to itself" across multiple separate
+    days. Callers that don't pass exclude_post_ids get the exact previous
+    behavior (nothing excluded).
 
     Bug fix (found while fixing ai.embed_text's #10): this used to rely
     entirely on embed_text swallowing every possible failure internally
@@ -180,7 +207,7 @@ def check_semantic_duplicate(draft_text, threshold=DEDUP_SIMILARITY_THRESHOLD):
     records = _load_records()
     if not records:
         return None, 0.0
-    title, score = most_similar(vector, records)
+    title, score = most_similar(vector, records, exclude_post_ids=exclude_post_ids)
     if score >= threshold:
         return title, score
     return None, score
