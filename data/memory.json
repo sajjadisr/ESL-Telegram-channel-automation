@@ -190,6 +190,12 @@
       "format": "micro_scene",
       "date": "2026-08-24",
       "source": "review"
+    },
+    {
+      "topic": "Their vs there vs they're",
+      "format": "spot_mistake",
+      "date": "2026-08-25",
+      "source": "fresh"
     }
   ],
   "avoid": [
