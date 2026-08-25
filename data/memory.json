@@ -196,6 +196,12 @@
       "format": "spot_mistake",
       "date": "2026-08-25",
       "source": "fresh"
+    },
+    {
+      "topic": "Its vs it's",
+      "format": "vocab_spotlight",
+      "date": "2026-08-25",
+      "source": "review"
     }
   ],
   "avoid": [
