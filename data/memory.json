@@ -202,6 +202,12 @@
       "format": "vocab_spotlight",
       "date": "2026-08-25",
       "source": "review"
+    },
+    {
+      "topic": "Hit the books",
+      "format": "illustrated_pun",
+      "date": "2026-08-26",
+      "source": "fresh"
     }
   ],
   "avoid": [
