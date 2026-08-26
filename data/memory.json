@@ -208,6 +208,12 @@
       "format": "illustrated_pun",
       "date": "2026-08-26",
       "source": "fresh"
+    },
+    {
+      "topic": "Under the weather",
+      "format": "spot_mistake",
+      "date": "2026-08-26",
+      "source": "review"
     }
   ],
   "avoid": [
