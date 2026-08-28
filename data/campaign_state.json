@@ -56,6 +56,11 @@
       "date": "2026-08-28",
       "format": "progress_recap",
       "title": "Progress recap"
+    },
+    {
+      "date": "2026-08-28",
+      "format": "spot_mistake",
+      "title": "It's raining cats and dogs"
     }
   ]
 }
