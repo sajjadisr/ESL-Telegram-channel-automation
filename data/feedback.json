@@ -30,5 +30,12 @@
     "date": "2026-08-22",
     "source": "auto_poll_harvest",
     "correct_rate": 100.0
+  },
+  {
+    "post_title": "خیلیا این اصطلاح کاربردی رو اشتباه معنی می‌کنن! اگه فردا یه امتحان سخت داری و می‌خوای بگی «باید بشینم بکوب درس بخونم»، چی می‌گی؟\n\n\"I have a test tomorrow, so I need to ________.\"",
+    "notes": "نظرسنجی «خیلیا این اصطلاح کاربردی رو اشتباه معنی می‌کنن! اگه فردا یه امتحان سخت داری و می‌خوای بگی «باید بشینم بکوب درس بخونم»، چی می‌گی؟\n\n\"I have a test tomorrow, so I need to ________.\"» با 1 رأی بسته شد. درصد پاسخ درست: 100٪. توزیع آرا: hit the books=1، punch the books=0، study the books=0، break the books=0",
+    "date": "2026-08-29",
+    "source": "auto_poll_harvest",
+    "correct_rate": 100.0
   }
 ]

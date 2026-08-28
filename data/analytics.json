@@ -1292,5 +1292,24 @@
     "views": null,
     "forwards": null,
     "reactions": null
+  },
+  {
+    "date": "2026-08-29",
+    "question": "خیلیا این اصطلاح کاربردی رو اشتباه معنی می‌کنن! اگه فردا یه امتحان سخت داری و می‌خوای بگی «باید بشینم بکوب درس بخونم»، چی می‌گی؟\n\n\"I have a test tomorrow, so I need to ________.\"",
+    "format": "quiz",
+    "is_quiz": true,
+    "vote_count": 1,
+    "rolling_avg_votes_before_this_post": 0.25,
+    "correct_rate": 100.0,
+    "reward_score": 1.0,
+    "experiment_id": "hook_style_v1",
+    "variant_label": "statement_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 78,
+    "views": null,
+    "forwards": null
   }
 ]
