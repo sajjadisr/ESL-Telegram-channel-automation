@@ -220,6 +220,12 @@
       "format": "spot_mistake",
       "date": "2026-08-28",
       "source": "review"
+    },
+    {
+      "topic": "Its vs it's",
+      "format": "micro_scene",
+      "date": "2026-08-29",
+      "source": "review"
     }
   ],
   "avoid": [
@@ -251,5 +257,6 @@
   "news_consecutive_failures": 0,
   "news_health_alerted": false,
   "topic_supply_alerted": false,
-  "story_supply_alerted": true
+  "story_supply_alerted": true,
+  "quota_pressure_alert_date": "2026-08-29"
 }
