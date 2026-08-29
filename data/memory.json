@@ -226,6 +226,12 @@
       "format": "micro_scene",
       "date": "2026-08-29",
       "source": "review"
+    },
+    {
+      "topic": "Their vs there vs they're",
+      "format": "vocab_spotlight",
+      "date": "2026-08-29",
+      "source": "review"
     }
   ],
   "avoid": [
