@@ -232,6 +232,12 @@
       "format": "vocab_spotlight",
       "date": "2026-08-29",
       "source": "review"
+    },
+    {
+      "topic": "Travel vocabulary",
+      "format": "vocab_spotlight",
+      "date": "2026-08-30",
+      "source": "fresh"
     }
   ],
   "avoid": [
