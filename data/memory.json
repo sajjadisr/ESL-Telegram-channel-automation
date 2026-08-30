@@ -244,6 +244,12 @@
       "format": "spot_mistake",
       "date": "2026-08-30",
       "source": "review"
+    },
+    {
+      "topic": "Travel vocabulary",
+      "format": "micro_scene",
+      "date": "2026-08-31",
+      "source": "review"
     }
   ],
   "avoid": [
