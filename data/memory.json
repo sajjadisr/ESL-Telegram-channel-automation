@@ -250,6 +250,12 @@
       "format": "micro_scene",
       "date": "2026-08-31",
       "source": "review"
+    },
+    {
+      "topic": "Much vs many",
+      "format": "spot_mistake",
+      "date": "2026-09-01",
+      "source": "fresh"
     }
   ],
   "avoid": [
