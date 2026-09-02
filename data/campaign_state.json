@@ -71,6 +71,11 @@
       "date": "2026-09-02",
       "format": "vocab_spotlight",
       "title": "Much vs many"
+    },
+    {
+      "date": "2026-09-02",
+      "format": "news_relevel",
+      "title": "Tech Life"
     }
   ]
 }
