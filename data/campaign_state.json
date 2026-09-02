@@ -66,6 +66,11 @@
       "date": "2026-09-02",
       "format": "progress_recap",
       "title": "Progress recap"
+    },
+    {
+      "date": "2026-09-02",
+      "format": "vocab_spotlight",
+      "title": "Much vs many"
     }
   ]
 }

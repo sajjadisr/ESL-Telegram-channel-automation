@@ -256,6 +256,12 @@
       "format": "spot_mistake",
       "date": "2026-09-01",
       "source": "fresh"
+    },
+    {
+      "topic": "Much vs many",
+      "format": "vocab_spotlight",
+      "date": "2026-09-02",
+      "source": "review"
     }
   ],
   "avoid": [
