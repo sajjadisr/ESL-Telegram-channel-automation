@@ -1,9 +1,11 @@
 {
   "weak_categories": [],
   "strong_categories": [
+    "Common mistakes",
     "Idioms"
   ],
   "quiz_accuracy_history": [
+    100.0,
     100.0,
     100.0
   ],

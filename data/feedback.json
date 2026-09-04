@@ -37,5 +37,12 @@
     "date": "2026-08-29",
     "source": "auto_poll_harvest",
     "correct_rate": 100.0
+  },
+  {
+    "post_title": "توی این جمله، کدوم کلمه برای جای خالی درسته؟\n\n'I don't have ________ money to buy a new laptop.'",
+    "notes": "نظرسنجی «توی این جمله، کدوم کلمه برای جای خالی درسته؟\n\n'I don't have ________ money to buy a new laptop.'» با 1 رأی بسته شد. درصد پاسخ درست: 100٪. توزیع آرا: much=1، many=0، few=0، some=0",
+    "date": "2026-09-05",
+    "source": "auto_poll_harvest",
+    "correct_rate": 100.0
   }
 ]

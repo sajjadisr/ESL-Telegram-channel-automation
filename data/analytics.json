@@ -1651,5 +1651,24 @@
     "views": null,
     "forwards": null,
     "reactions": null
+  },
+  {
+    "date": "2026-09-05",
+    "question": "توی این جمله، کدوم کلمه برای جای خالی درسته؟\n\n'I don't have ________ money to buy a new laptop.'",
+    "format": "quiz",
+    "is_quiz": true,
+    "vote_count": 1,
+    "rolling_avg_votes_before_this_post": 0.4,
+    "correct_rate": 100.0,
+    "reward_score": 1.0,
+    "experiment_id": "hook_style_v1",
+    "variant_label": "direct_question_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 97,
+    "views": null,
+    "forwards": null
   }
 ]
