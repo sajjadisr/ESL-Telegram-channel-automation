@@ -81,6 +81,11 @@
       "date": "2026-09-04",
       "format": "quiz",
       "title": "کوییز: Tech Life, Much vs many, Tech Now"
+    },
+    {
+      "date": "2026-09-04",
+      "format": "news_relevel",
+      "title": "Will El Nino bring chaos to UK weather?"
     }
   ]
 }
