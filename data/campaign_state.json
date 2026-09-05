@@ -6,6 +6,11 @@
       "date": "2026-09-05",
       "format": "micro_scene",
       "title": "Much vs many"
+    },
+    {
+      "date": "2026-09-05",
+      "format": "news_relevel",
+      "title": "Will self-flying planes transform the skies?"
     }
   ]
 }
