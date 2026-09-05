@@ -262,6 +262,12 @@
       "format": "vocab_spotlight",
       "date": "2026-09-02",
       "source": "review"
+    },
+    {
+      "topic": "Much vs many",
+      "format": "micro_scene",
+      "date": "2026-09-05",
+      "source": "review"
     }
   ],
   "avoid": [

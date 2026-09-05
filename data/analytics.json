@@ -1670,5 +1670,25 @@
     "message_id": 97,
     "views": null,
     "forwards": null
+  },
+  {
+    "date": "2026-09-05",
+    "question": "Much vs many",
+    "format": "micro_scene",
+    "is_quiz": null,
+    "vote_count": null,
+    "rolling_avg_votes_before_this_post": null,
+    "correct_rate": null,
+    "reward_score": null,
+    "experiment_id": null,
+    "variant_label": null,
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 100,
+    "views": null,
+    "forwards": null,
+    "reactions": null
   }
 ]
