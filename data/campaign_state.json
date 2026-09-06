@@ -16,6 +16,11 @@
       "date": "2026-09-06",
       "format": "vocab_spotlight",
       "title": "Weather and seasons"
+    },
+    {
+      "date": "2026-09-06",
+      "format": "news_relevel",
+      "title": "Tech Life"
     }
   ]
 }
