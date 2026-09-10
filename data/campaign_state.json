@@ -81,6 +81,11 @@
       "date": "2026-09-10",
       "format": "spot_mistake",
       "title": "Cost an arm and a leg"
+    },
+    {
+      "date": "2026-09-10",
+      "format": "news_relevel",
+      "title": "August joint hottest month on record globally"
     }
   ]
 }
