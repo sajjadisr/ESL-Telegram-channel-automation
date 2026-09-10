@@ -292,6 +292,12 @@
       "format": "voice_note",
       "date": "2026-09-10",
       "source": "fresh"
+    },
+    {
+      "topic": "Cost an arm and a leg",
+      "format": "spot_mistake",
+      "date": "2026-09-10",
+      "source": "review"
     }
   ],
   "avoid": [
