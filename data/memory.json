@@ -304,6 +304,12 @@
       "format": "spot_mistake",
       "date": "2026-09-11",
       "source": "review"
+    },
+    {
+      "topic": "Color: red",
+      "format": "vocab_spotlight",
+      "date": "2026-09-13",
+      "source": "fresh"
     }
   ],
   "avoid": [
