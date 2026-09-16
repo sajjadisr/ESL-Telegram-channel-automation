@@ -328,6 +328,12 @@
       "format": "spot_mistake",
       "date": "2026-09-16",
       "source": "review"
+    },
+    {
+      "topic": "Good vs well",
+      "format": "vocab_spotlight",
+      "date": "2026-09-16",
+      "source": "review"
     }
   ],
   "avoid": [
