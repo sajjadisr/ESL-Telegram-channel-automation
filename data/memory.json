@@ -322,6 +322,12 @@
       "format": "illustrated_pun",
       "date": "2026-09-16",
       "source": "fresh"
+    },
+    {
+      "topic": "Color: red",
+      "format": "spot_mistake",
+      "date": "2026-09-16",
+      "source": "review"
     }
   ],
   "avoid": [
