@@ -2229,5 +2229,25 @@
     "views": null,
     "forwards": null,
     "reactions": null
+  },
+  {
+    "date": "2026-09-18",
+    "question": "Valve's Steam Frame is excellent - but at over £1,000 is VR still too expensive?",
+    "format": "news_relevel",
+    "is_quiz": null,
+    "vote_count": null,
+    "rolling_avg_votes_before_this_post": null,
+    "correct_rate": null,
+    "reward_score": null,
+    "experiment_id": null,
+    "variant_label": null,
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 129,
+    "views": null,
+    "forwards": null,
+    "reactions": null
   }
 ]

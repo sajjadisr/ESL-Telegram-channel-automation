@@ -46,6 +46,11 @@
       "date": "2026-09-18",
       "format": "spot_mistake",
       "title": "Once in a blue moon"
+    },
+    {
+      "date": "2026-09-18",
+      "format": "news_relevel",
+      "title": "Valve's Steam Frame is excellent - but at over £1,000 is VR still too expensive?"
     }
   ]
 }
