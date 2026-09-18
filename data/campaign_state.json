@@ -1,56 +1,5 @@
 {
-  "week_start": "2026-09-12",
-  "theme_category": "Grammar",
-  "posts_this_week": [
-    {
-      "date": "2026-09-13",
-      "format": "vocab_spotlight",
-      "title": "Color: red"
-    },
-    {
-      "date": "2026-09-13",
-      "format": "news_relevel",
-      "title": "Céline Dion fans prepare for comeback concert in Paris"
-    },
-    {
-      "date": "2026-09-13",
-      "format": "progress_recap",
-      "title": "Progress recap"
-    },
-    {
-      "date": "2026-09-15",
-      "format": "spot_mistake",
-      "title": "Good vs well"
-    },
-    {
-      "date": "2026-09-16",
-      "format": "illustrated_pun",
-      "title": "Once in a blue moon"
-    },
-    {
-      "date": "2026-09-16",
-      "format": "spot_mistake",
-      "title": "Color: red"
-    },
-    {
-      "date": "2026-09-16",
-      "format": "vocab_spotlight",
-      "title": "Good vs well"
-    },
-    {
-      "date": "2026-09-18",
-      "format": "quiz",
-      "title": "کوییز: Good vs well, Color: red, Once in a blue moon"
-    },
-    {
-      "date": "2026-09-18",
-      "format": "spot_mistake",
-      "title": "Once in a blue moon"
-    },
-    {
-      "date": "2026-09-18",
-      "format": "news_relevel",
-      "title": "Valve's Steam Frame is excellent - but at over £1,000 is VR still too expensive?"
-    }
-  ]
+  "week_start": "2026-09-19",
+  "theme_category": "Vocabulary",
+  "posts_this_week": []
 }

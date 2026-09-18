@@ -1,14 +1,16 @@
 {
-  "weak_categories": [],
-  "strong_categories": [
-    "Idioms",
+  "weak_categories": [
     "Common mistakes"
+  ],
+  "strong_categories": [
+    "Idioms"
   ],
   "quiz_accuracy_history": [
     100.0,
     100.0,
     100.0,
-    100.0
+    100.0,
+    0.0
   ],
-  "avg_quiz_accuracy": 100.0
+  "avg_quiz_accuracy": 80.0
 }

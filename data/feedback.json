@@ -51,5 +51,12 @@
     "date": "2026-09-12",
     "source": "auto_poll_harvest",
     "correct_rate": 100.0
+  },
+  {
+    "post_title": "می‌تونی جمله درست رو تکمیل کنی؟ \"She feels ______ after the exam.\"",
+    "notes": "نظرسنجی «می‌تونی جمله درست رو تکمیل کنی؟ \"She feels ______ after the exam.\"» با 1 رأی بسته شد. درصد پاسخ درست: 0٪. توزیع آرا: good=1، well=0، bad=0، badly=0",
+    "date": "2026-09-19",
+    "source": "auto_poll_harvest",
+    "correct_rate": 0.0
   }
 ]
