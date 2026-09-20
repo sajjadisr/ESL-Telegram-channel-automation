@@ -346,6 +346,12 @@
       "format": "micro_scene",
       "date": "2026-09-19",
       "source": "review"
+    },
+    {
+      "topic": "Color: blue",
+      "format": "vocab_spotlight",
+      "date": "2026-09-20",
+      "source": "fresh"
     }
   ],
   "avoid": [
