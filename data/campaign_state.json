@@ -21,6 +21,11 @@
       "date": "2026-09-20",
       "format": "vocab_spotlight",
       "title": "Color: blue"
+    },
+    {
+      "date": "2026-09-20",
+      "format": "news_relevel",
+      "title": "Tech Now"
     }
   ]
 }
