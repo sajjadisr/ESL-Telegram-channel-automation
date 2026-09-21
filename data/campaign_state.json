@@ -41,6 +41,11 @@
       "date": "2026-09-21",
       "format": "spot_mistake",
       "title": "Color: blue"
+    },
+    {
+      "date": "2026-09-21",
+      "format": "news_relevel",
+      "title": "Tech Now"
     }
   ]
 }
