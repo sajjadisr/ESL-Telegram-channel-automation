@@ -417,11 +417,12 @@
     "https://www.bbc.co.uk/iplayer/episode/m0031qjy?at_medium=RSS&at_campaign=rss",
     "https://www.bbc.co.uk/news/articles/cgqd9zkkvlyo?at_medium=RSS&at_campaign=rss",
     "https://www.bbc.co.uk/iplayer/episode/m0031d1p?at_medium=RSS&at_campaign=rss",
-    "https://www.bbc.co.uk/sounds/play/w3ct8jyg?at_medium=RSS&at_campaign=rss"
+    "https://www.bbc.co.uk/sounds/play/w3ct8jyg?at_medium=RSS&at_campaign=rss",
+    "https://www.bbc.co.uk/news/articles/cwg59g3vz564o?at_medium=RSS&at_campaign=rss"
   ],
   "news_consecutive_failures": 0,
   "news_health_alerted": false,
   "topic_supply_alerted": false,
   "story_supply_alerted": true,
-  "quota_pressure_alert_date": "2026-09-21"
+  "quota_pressure_alert_date": "2026-09-23"
 }
