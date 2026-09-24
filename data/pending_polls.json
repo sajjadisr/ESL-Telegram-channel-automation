@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "message_id": 141,
+    "question": "خیلیا می‌گن «It is a blue» ولی این درست نیست. جمله زیر رو کامل کن: \"Look at the sky! It is ____.\"",
+    "is_quiz": true,
+    "correct_index": 1,
+    "sent_date": "2026-09-25",
+    "first_attempt_date": "2026-09-25",
+    "retry_count": 0,
+    "theme_category": "Vocabulary",
+    "topic_category": "Vocabulary",
+    "experiment_id": "hook_style_v1",
+    "variant_label": "statement_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    }
+  }
+]
