@@ -71,6 +71,11 @@
       "date": "2026-09-25",
       "format": "spot_mistake",
       "title": "Speak of the devil"
+    },
+    {
+      "date": "2026-09-25",
+      "format": "news_relevel",
+      "title": "Apple Day called off after poor harvest"
     }
   ]
 }
