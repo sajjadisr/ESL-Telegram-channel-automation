@@ -58,5 +58,12 @@
     "date": "2026-09-19",
     "source": "auto_poll_harvest",
     "correct_rate": 0.0
+  },
+  {
+    "post_title": "خیلیا می‌گن «It is a blue» ولی این درست نیست. جمله زیر رو کامل کن: \"Look at the sky! It is ____.\"",
+    "notes": "نظرسنجی «خیلیا می‌گن «It is a blue» ولی این درست نیست. جمله زیر رو کامل کن: \"Look at the sky! It is ____.\"» با 2 رأی بسته شد. درصد پاسخ درست: 100٪. توزیع آرا: a blue=0، blue=2، the blue=0، an blue=0",
+    "date": "2026-09-26",
+    "source": "auto_poll_harvest",
+    "correct_rate": 100.0
   }
 ]

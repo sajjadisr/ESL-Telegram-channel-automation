@@ -3,6 +3,7 @@
     "Common mistakes"
   ],
   "strong_categories": [
+    "Vocabulary",
     "Idioms"
   ],
   "quiz_accuracy_history": [
@@ -10,7 +11,8 @@
     100.0,
     100.0,
     100.0,
-    0.0
+    0.0,
+    100.0
   ],
-  "avg_quiz_accuracy": 80.0
+  "avg_quiz_accuracy": 83.3
 }
