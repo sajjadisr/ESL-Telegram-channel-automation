@@ -1,5 +1,11 @@
 {
   "week_start": "2026-09-26",
   "theme_category": "Grammar",
-  "posts_this_week": []
+  "posts_this_week": [
+    {
+      "date": "2026-09-27",
+      "format": "vocab_spotlight",
+      "title": "Color: green"
+    }
+  ]
 }
