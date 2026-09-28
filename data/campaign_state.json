@@ -31,6 +31,11 @@
       "date": "2026-09-28",
       "format": "news_relevel",
       "title": "Tech Now"
+    },
+    {
+      "date": "2026-09-29",
+      "format": "progress_recap",
+      "title": "Progress recap"
     }
   ]
 }
