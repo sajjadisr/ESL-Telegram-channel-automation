@@ -394,6 +394,12 @@
       "format": "voice_note",
       "date": "2026-10-01",
       "source": "fresh"
+    },
+    {
+      "topic": "The ball is in your court",
+      "format": "spot_mistake",
+      "date": "2026-10-02",
+      "source": "review"
     }
   ],
   "avoid": [
