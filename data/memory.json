@@ -400,6 +400,12 @@
       "format": "spot_mistake",
       "date": "2026-10-02",
       "source": "review"
+    },
+    {
+      "topic": "Color: yellow",
+      "format": "spot_mistake",
+      "date": "2026-10-02",
+      "source": "review"
     }
   ],
   "avoid": [
@@ -470,5 +476,5 @@
   "news_health_alerted": false,
   "topic_supply_alerted": false,
   "story_supply_alerted": true,
-  "quota_pressure_alert_date": "2026-10-01"
+  "quota_pressure_alert_date": "2026-10-02"
 }
