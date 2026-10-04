@@ -406,6 +406,12 @@
       "format": "spot_mistake",
       "date": "2026-10-02",
       "source": "review"
+    },
+    {
+      "topic": "Color: black",
+      "format": "vocab_spotlight",
+      "date": "2026-10-04",
+      "source": "fresh"
     }
   ],
   "avoid": [
@@ -477,5 +483,5 @@
   "news_health_alerted": false,
   "topic_supply_alerted": false,
   "story_supply_alerted": true,
-  "quota_pressure_alert_date": "2026-10-02"
+  "quota_pressure_alert_date": "2026-10-04"
 }
