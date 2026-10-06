@@ -21,6 +21,11 @@
       "date": "2026-10-06",
       "format": "spot_mistake",
       "title": "Borrow vs lend"
+    },
+    {
+      "date": "2026-10-07",
+      "format": "progress_recap",
+      "title": "Progress recap"
     }
   ]
 }
