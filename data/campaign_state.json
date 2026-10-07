@@ -26,6 +26,11 @@
       "date": "2026-10-07",
       "format": "progress_recap",
       "title": "Progress recap"
+    },
+    {
+      "date": "2026-10-07",
+      "format": "spot_mistake",
+      "title": "Color: black"
     }
   ]
 }
