@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "message_id": 167,
+    "question": "خیلیا توی استفاده از «قرض گرفتن» و «قرض دادن» اشتباه می‌کنن! واسه اینکه به دوستت بگی «می‌تونم کتابت رو قرض بگیرم؟» کدوم کلمه درسته؟\n\n\"Can I ________ your book?\"",
+    "is_quiz": true,
+    "correct_index": 0,
+    "sent_date": "2026-10-09",
+    "first_attempt_date": "2026-10-09",
+    "retry_count": 0,
+    "theme_category": "Vocabulary",
+    "topic_category": "Vocabulary",
+    "experiment_id": "hook_style_v1",
+    "variant_label": "statement_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    }
+  }
+]
