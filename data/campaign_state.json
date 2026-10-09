@@ -41,6 +41,11 @@
       "date": "2026-10-09",
       "format": "vocab_spotlight",
       "title": "Borrow vs lend"
+    },
+    {
+      "date": "2026-10-09",
+      "format": "news_relevel",
+      "title": "OpenAI says teen ChatGPT use limited but research finds it an 'unacceptable risk'"
     }
   ]
 }
