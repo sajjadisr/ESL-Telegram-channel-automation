@@ -424,6 +424,12 @@
       "format": "spot_mistake",
       "date": "2026-10-07",
       "source": "review"
+    },
+    {
+      "topic": "Borrow vs lend",
+      "format": "vocab_spotlight",
+      "date": "2026-10-09",
+      "source": "review"
     }
   ],
   "avoid": [
