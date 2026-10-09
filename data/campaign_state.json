@@ -1,51 +1,5 @@
 {
-  "week_start": "2026-10-03",
-  "theme_category": "Vocabulary",
-  "posts_this_week": [
-    {
-      "date": "2026-10-04",
-      "format": "vocab_spotlight",
-      "title": "Color: black"
-    },
-    {
-      "date": "2026-10-04",
-      "format": "news_relevel",
-      "title": "How to see the Orionid meteor shower this weekend"
-    },
-    {
-      "date": "2026-10-04",
-      "format": "news_relevel",
-      "title": "Tech Now"
-    },
-    {
-      "date": "2026-10-06",
-      "format": "spot_mistake",
-      "title": "Borrow vs lend"
-    },
-    {
-      "date": "2026-10-07",
-      "format": "progress_recap",
-      "title": "Progress recap"
-    },
-    {
-      "date": "2026-10-07",
-      "format": "spot_mistake",
-      "title": "Color: black"
-    },
-    {
-      "date": "2026-10-09",
-      "format": "quiz",
-      "title": "کوییز: Color: black, Borrow vs lend, Tech Now"
-    },
-    {
-      "date": "2026-10-09",
-      "format": "vocab_spotlight",
-      "title": "Borrow vs lend"
-    },
-    {
-      "date": "2026-10-09",
-      "format": "news_relevel",
-      "title": "OpenAI says teen ChatGPT use limited but research finds it an 'unacceptable risk'"
-    }
-  ]
+  "week_start": "2026-10-10",
+  "theme_category": "Grammar",
+  "posts_this_week": []
 }
