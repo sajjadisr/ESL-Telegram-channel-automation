@@ -6,6 +6,11 @@
       "date": "2026-10-10",
       "format": "micro_scene",
       "title": "Borrow vs lend"
+    },
+    {
+      "date": "2026-10-10",
+      "format": "news_relevel",
+      "title": "Tech Life"
     }
   ]
 }
