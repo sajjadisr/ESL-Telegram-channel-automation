@@ -1,5 +1,11 @@
 {
   "week_start": "2026-10-10",
   "theme_category": "Grammar",
-  "posts_this_week": []
+  "posts_this_week": [
+    {
+      "date": "2026-10-10",
+      "format": "micro_scene",
+      "title": "Borrow vs lend"
+    }
+  ]
 }
