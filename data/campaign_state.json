@@ -11,6 +11,11 @@
       "date": "2026-10-10",
       "format": "news_relevel",
       "title": "Tech Life"
+    },
+    {
+      "date": "2026-10-13",
+      "format": "spot_mistake",
+      "title": "Bring vs take"
     }
   ]
 }
