@@ -36,6 +36,11 @@
       "date": "2026-10-14",
       "format": "vocab_spotlight",
       "title": "Bring vs take"
+    },
+    {
+      "date": "2026-10-14",
+      "format": "news_relevel",
+      "title": "Tech Life"
     }
   ]
 }
