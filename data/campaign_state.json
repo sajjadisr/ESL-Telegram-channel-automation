@@ -46,6 +46,11 @@
       "date": "2026-10-16",
       "format": "quiz",
       "title": "کوییز: Tech Life, Bring vs take, When pigs fly"
+    },
+    {
+      "date": "2026-10-16",
+      "format": "progress_recap",
+      "title": "Progress recap"
     }
   ]
 }
