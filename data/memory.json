@@ -460,6 +460,12 @@
       "format": "spot_mistake",
       "date": "2026-10-16",
       "source": "review"
+    },
+    {
+      "topic": "Bring vs take",
+      "format": "micro_scene",
+      "date": "2026-10-17",
+      "source": "review"
     }
   ],
   "avoid": [
@@ -469,6 +475,7 @@
     "مثال گرامری خشک بدون قلاب/شوخی/تعامل"
   ],
   "successful_patterns": [
+    "quiz_high: می‌تونی جواب درست رو پیدا کنی؟ جمله زیر کدوم فعل درسته؟ \"I will ___ my phone to ",
     "quiz_high: خیلیا توی استفاده از «قرض گرفتن» و «قرض دادن» اشتباه می‌کنن! واسه اینکه به دوستت",
     "quiz_high: توی این جمله، کدوم حرف اضافه برای فصل پاییز (autumn) درسته؟\n\n'We love to go for ",
     "quiz_high: خیلیا می‌گن «It is a blue» ولی این درست نیست. جمله زیر رو کامل کن: \"Look at the ",
