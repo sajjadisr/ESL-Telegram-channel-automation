@@ -51,6 +51,11 @@
       "date": "2026-10-16",
       "format": "progress_recap",
       "title": "Progress recap"
+    },
+    {
+      "date": "2026-10-16",
+      "format": "spot_mistake",
+      "title": "When pigs fly"
     }
   ]
 }
