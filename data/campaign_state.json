@@ -6,6 +6,11 @@
       "date": "2026-10-17",
       "format": "micro_scene",
       "title": "Bring vs take"
+    },
+    {
+      "date": "2026-10-17",
+      "format": "news_relevel",
+      "title": "Sheep are disappearing from our hills - and our dinner plates"
     }
   ]
 }
