@@ -26,6 +26,11 @@
       "date": "2026-10-20",
       "format": "news_relevel",
       "title": "Tech Now"
+    },
+    {
+      "date": "2026-10-20",
+      "format": "news_relevel",
+      "title": "Tech Life"
     }
   ]
 }
