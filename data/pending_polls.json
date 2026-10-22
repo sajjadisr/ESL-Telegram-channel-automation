@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "message_id": 188,
+    "question": "خیلیا توی این جمله می‌نویسن 'kill two bird with one stone' که اشتباهه. درست پر کنید: \"Tom has one free hour. He can ___ to buy milk and return a book.\"",
+    "is_quiz": true,
+    "correct_index": 0,
+    "sent_date": "2026-10-23",
+    "first_attempt_date": "2026-10-23",
+    "retry_count": 0,
+    "theme_category": "Vocabulary",
+    "topic_category": "Idioms",
+    "experiment_id": "hook_style_v1",
+    "variant_label": "statement_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    }
+  }
+]

@@ -26,7 +26,8 @@
       "statement_hook",
       "direct_question_hook",
       "statement_hook",
-      "direct_question_hook"
+      "direct_question_hook",
+      "statement_hook"
     ]
   }
 ]
