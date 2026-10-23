@@ -46,6 +46,11 @@
       "date": "2026-10-23",
       "format": "vocab_spotlight",
       "title": "Few vs a little"
+    },
+    {
+      "date": "2026-10-23",
+      "format": "spot_mistake",
+      "title": "Kill two birds with one stone"
     }
   ]
 }

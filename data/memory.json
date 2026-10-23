@@ -484,6 +484,12 @@
       "format": "vocab_spotlight",
       "date": "2026-10-23",
       "source": "review"
+    },
+    {
+      "topic": "Kill two birds with one stone",
+      "format": "spot_mistake",
+      "date": "2026-10-23",
+      "source": "review"
     }
   ],
   "avoid": [
