@@ -478,6 +478,12 @@
       "format": "illustrated_pun",
       "date": "2026-10-21",
       "source": "fresh"
+    },
+    {
+      "topic": "Few vs a little",
+      "format": "vocab_spotlight",
+      "date": "2026-10-23",
+      "source": "review"
     }
   ],
   "avoid": [
@@ -562,5 +568,5 @@
   "news_health_alerted": false,
   "topic_supply_alerted": false,
   "story_supply_alerted": true,
-  "quota_pressure_alert_date": "2026-10-20"
+  "quota_pressure_alert_date": "2026-10-23"
 }
