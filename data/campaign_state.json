@@ -1,56 +1,11 @@
 {
-  "week_start": "2026-10-17",
-  "theme_category": "Vocabulary",
+  "week_start": "2026-10-24",
+  "theme_category": "Grammar",
   "posts_this_week": [
     {
-      "date": "2026-10-17",
+      "date": "2026-10-24",
       "format": "micro_scene",
-      "title": "Bring vs take"
-    },
-    {
-      "date": "2026-10-17",
-      "format": "news_relevel",
-      "title": "Sheep are disappearing from our hills - and our dinner plates"
-    },
-    {
-      "date": "2026-10-17",
-      "format": "news_relevel",
-      "title": "Little tern colony has worst breeding season"
-    },
-    {
-      "date": "2026-10-20",
-      "format": "spot_mistake",
       "title": "Few vs a little"
-    },
-    {
-      "date": "2026-10-20",
-      "format": "news_relevel",
-      "title": "Tech Now"
-    },
-    {
-      "date": "2026-10-20",
-      "format": "news_relevel",
-      "title": "Tech Life"
-    },
-    {
-      "date": "2026-10-21",
-      "format": "illustrated_pun",
-      "title": "Kill two birds with one stone"
-    },
-    {
-      "date": "2026-10-23",
-      "format": "quiz",
-      "title": "کوییز: Kill two birds with one stone, Tech Life, Tech Now"
-    },
-    {
-      "date": "2026-10-23",
-      "format": "vocab_spotlight",
-      "title": "Few vs a little"
-    },
-    {
-      "date": "2026-10-23",
-      "format": "spot_mistake",
-      "title": "Kill two birds with one stone"
     }
   ]
 }

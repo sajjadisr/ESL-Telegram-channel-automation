@@ -490,6 +490,12 @@
       "format": "spot_mistake",
       "date": "2026-10-23",
       "source": "review"
+    },
+    {
+      "topic": "Few vs a little",
+      "format": "micro_scene",
+      "date": "2026-10-24",
+      "source": "review"
     }
   ],
   "avoid": [

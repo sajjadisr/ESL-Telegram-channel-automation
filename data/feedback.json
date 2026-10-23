@@ -86,5 +86,11 @@
     "date": "2026-10-17",
     "source": "auto_poll_harvest",
     "correct_rate": 100.0
+  },
+  {
+    "post_title": "خیلیا توی این جمله می‌نویسن 'kill two bird with one stone' که اشتباهه. درست پر کنید: \"Tom has one free hour. He can ___ to buy milk and return a book.\"",
+    "notes": "نظرسنجی «خیلیا توی این جمله می‌نویسن 'kill two bird with one stone' که اشتباهه. درست پر کنید: \"Tom has one free hour. He can ___ to buy milk and return a book.\"» با 0 رأی بسته شد. توزیع آرا: kill two birds with one stone=0، make two birds fly=0، hit two birds=0، do two things=0",
+    "date": "2026-10-24",
+    "source": "auto_poll_harvest"
   }
 ]
