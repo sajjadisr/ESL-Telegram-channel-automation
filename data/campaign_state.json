@@ -16,6 +16,11 @@
       "date": "2026-10-24",
       "format": "progress_recap",
       "title": "Progress recap"
+    },
+    {
+      "date": "2026-10-25",
+      "format": "vocab_spotlight",
+      "title": "Color: white"
     }
   ]
 }

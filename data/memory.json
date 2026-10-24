@@ -502,6 +502,12 @@
       "format": "vocab_spotlight",
       "date": "2026-10-24",
       "source": "review"
+    },
+    {
+      "topic": "Color: white",
+      "format": "vocab_spotlight",
+      "date": "2026-10-25",
+      "source": "fresh"
     }
   ],
   "avoid": [
