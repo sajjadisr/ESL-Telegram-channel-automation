@@ -508,6 +508,12 @@
       "format": "vocab_spotlight",
       "date": "2026-10-25",
       "source": "fresh"
+    },
+    {
+      "topic": "Color: white",
+      "format": "micro_scene",
+      "date": "2026-10-25",
+      "source": "review"
     }
   ],
   "avoid": [
