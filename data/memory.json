@@ -526,6 +526,12 @@
       "format": "micro_scene",
       "date": "2026-10-26",
       "source": "review"
+    },
+    {
+      "topic": "Daily routine words",
+      "format": "vocab_spotlight",
+      "date": "2026-10-26",
+      "source": "review"
     }
   ],
   "avoid": [
