@@ -41,6 +41,11 @@
       "date": "2026-10-26",
       "format": "vocab_spotlight",
       "title": "Daily routine words"
+    },
+    {
+      "date": "2026-10-27",
+      "format": "spot_mistake",
+      "title": "Since vs for"
     }
   ]
 }
