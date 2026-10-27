@@ -544,6 +544,12 @@
       "format": "vocab_spotlight",
       "date": "2026-10-27",
       "source": "review"
+    },
+    {
+      "topic": "Over the moon",
+      "format": "illustrated_pun",
+      "date": "2026-10-28",
+      "source": "fresh"
     }
   ],
   "avoid": [
