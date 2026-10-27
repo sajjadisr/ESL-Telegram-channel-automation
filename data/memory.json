@@ -538,6 +538,12 @@
       "format": "spot_mistake",
       "date": "2026-10-27",
       "source": "fresh"
+    },
+    {
+      "topic": "Present continuous tense",
+      "format": "vocab_spotlight",
+      "date": "2026-10-27",
+      "source": "review"
     }
   ],
   "avoid": [
