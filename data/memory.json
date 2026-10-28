@@ -550,6 +550,12 @@
       "format": "illustrated_pun",
       "date": "2026-10-28",
       "source": "fresh"
+    },
+    {
+      "topic": "Food and restaurant vocabulary",
+      "format": "vocab_spotlight",
+      "date": "2026-10-28",
+      "source": "review"
     }
   ],
   "avoid": [
