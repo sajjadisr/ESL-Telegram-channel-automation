@@ -556,6 +556,12 @@
       "format": "vocab_spotlight",
       "date": "2026-10-28",
       "source": "review"
+    },
+    {
+      "topic": "Food and restaurant vocabulary",
+      "format": "micro_scene",
+      "date": "2026-10-31",
+      "source": "review"
     }
   ],
   "avoid": [
@@ -565,6 +571,7 @@
     "مثال گرامری خشک بدون قلاب/شوخی/تعامل"
   ],
   "successful_patterns": [
+    "quiz_high: می‌تونی جواب درست رو پیدا کنی؟\n\n\"I have been at this restaurant ________ two hou",
     "quiz_high: می‌تونی جواب درست رو پیدا کنی؟ جمله زیر کدوم فعل درسته؟ \"I will ___ my phone to ",
     "quiz_high: خیلیا توی استفاده از «قرض گرفتن» و «قرض دادن» اشتباه می‌کنن! واسه اینکه به دوستت",
     "quiz_high: توی این جمله، کدوم حرف اضافه برای فصل پاییز (autumn) درسته؟\n\n'We love to go for ",

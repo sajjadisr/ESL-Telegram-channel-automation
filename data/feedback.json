@@ -92,5 +92,12 @@
     "notes": "نظرسنجی «خیلیا توی این جمله می‌نویسن 'kill two bird with one stone' که اشتباهه. درست پر کنید: \"Tom has one free hour. He can ___ to buy milk and return a book.\"» با 0 رأی بسته شد. توزیع آرا: kill two birds with one stone=0، make two birds fly=0، hit two birds=0، do two things=0",
     "date": "2026-10-24",
     "source": "auto_poll_harvest"
+  },
+  {
+    "post_title": "می‌تونی جواب درست رو پیدا کنی؟\n\n\"I have been at this restaurant ________ two hours.\"",
+    "notes": "نظرسنجی «می‌تونی جواب درست رو پیدا کنی؟\n\n\"I have been at this restaurant ________ two hours.\"» با 1 رأی بسته شد. درصد پاسخ درست: 100٪. توزیع آرا: for=1، since=0، from=0، in=0",
+    "date": "2026-10-31",
+    "source": "auto_poll_harvest",
+    "correct_rate": 100.0
   }
 ]
