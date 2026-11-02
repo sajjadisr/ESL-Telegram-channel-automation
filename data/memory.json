@@ -568,6 +568,12 @@
       "format": "micro_scene",
       "date": "2026-11-02",
       "source": "review"
+    },
+    {
+      "topic": "Fun vs funny",
+      "format": "spot_mistake",
+      "date": "2026-11-03",
+      "source": "fresh"
     }
   ],
   "avoid": [
