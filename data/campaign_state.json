@@ -16,6 +16,11 @@
       "date": "2026-11-03",
       "format": "spot_mistake",
       "title": "Fun vs funny"
+    },
+    {
+      "date": "2026-11-03",
+      "format": "progress_recap",
+      "title": "Progress recap"
     }
   ]
 }
