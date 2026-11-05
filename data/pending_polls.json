@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "message_id": 211,
+    "question": "خیلیا وقتی بین دو تا انتخاب گیر می‌کنن این اصطلاح کاربردی رو اشتباه می‌گن! اگه این هفته همراهمون بودی، بگو برای گفتن «من هنوز دو دلم و تصمیم نگرفتم» کدوم کلمه درسته؟\n\n\"I'm sitting on the ________.\"",
+    "is_quiz": true,
+    "correct_index": 0,
+    "sent_date": "2026-11-06",
+    "first_attempt_date": "2026-11-06",
+    "retry_count": 0,
+    "theme_category": "Vocabulary",
+    "topic_category": "Vocabulary",
+    "experiment_id": "hook_style_v1",
+    "variant_label": "statement_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    }
+  }
+]
