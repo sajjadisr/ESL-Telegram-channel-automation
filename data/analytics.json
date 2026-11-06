@@ -3859,5 +3859,44 @@
     "views": null,
     "forwards": null,
     "reactions": null
+  },
+  {
+    "date": "2026-11-07",
+    "question": "خیلیا وقتی بین دو تا انتخاب گیر می‌کنن این اصطلاح کاربردی رو اشتباه می‌گن! اگه این هفته همراهمون بودی، بگو برای گفتن «من هنوز دو دلم و تصمیم نگرفتم» کدوم کلمه درسته؟\n\n\"I'm sitting on the ________.\"",
+    "format": "quiz",
+    "is_quiz": true,
+    "vote_count": 1,
+    "rolling_avg_votes_before_this_post": 1.0,
+    "correct_rate": 100.0,
+    "reward_score": 0.75,
+    "experiment_id": "hook_style_v1",
+    "variant_label": "statement_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 211,
+    "views": null,
+    "forwards": null
+  },
+  {
+    "date": "2026-11-07",
+    "question": "Family: mother",
+    "format": "micro_scene",
+    "is_quiz": null,
+    "vote_count": null,
+    "rolling_avg_votes_before_this_post": null,
+    "correct_rate": null,
+    "reward_score": null,
+    "experiment_id": null,
+    "variant_label": null,
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 212,
+    "views": null,
+    "forwards": null,
+    "reactions": null
   }
 ]

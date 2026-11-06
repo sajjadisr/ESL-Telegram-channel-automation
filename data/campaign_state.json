@@ -1,41 +1,11 @@
 {
-  "week_start": "2026-10-31",
-  "theme_category": "Vocabulary",
+  "week_start": "2026-11-07",
+  "theme_category": "Grammar",
   "posts_this_week": [
     {
-      "date": "2026-10-31",
+      "date": "2026-11-07",
       "format": "micro_scene",
-      "title": "Food and restaurant vocabulary"
-    },
-    {
-      "date": "2026-11-02",
-      "format": "micro_scene",
-      "title": "Present continuous tense"
-    },
-    {
-      "date": "2026-11-03",
-      "format": "spot_mistake",
-      "title": "Fun vs funny"
-    },
-    {
-      "date": "2026-11-03",
-      "format": "progress_recap",
-      "title": "Progress recap"
-    },
-    {
-      "date": "2026-11-04",
-      "format": "illustrated_pun",
-      "title": "Sit on the fence"
-    },
-    {
-      "date": "2026-11-04",
-      "format": "vocab_spotlight",
       "title": "Family: mother"
-    },
-    {
-      "date": "2026-11-06",
-      "format": "quiz",
-      "title": "کوییز: Family: mother, Sit on the fence, Fun vs funny"
     }
   ]
 }

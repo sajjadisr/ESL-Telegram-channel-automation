@@ -586,6 +586,12 @@
       "format": "vocab_spotlight",
       "date": "2026-11-04",
       "source": "review"
+    },
+    {
+      "topic": "Family: mother",
+      "format": "micro_scene",
+      "date": "2026-11-07",
+      "source": "review"
     }
   ],
   "avoid": [
@@ -595,6 +601,7 @@
     "مثال گرامری خشک بدون قلاب/شوخی/تعامل"
   ],
   "successful_patterns": [
+    "quiz_high: خیلیا وقتی بین دو تا انتخاب گیر می‌کنن این اصطلاح کاربردی رو اشتباه می‌گن! اگه ا",
     "quiz_high: می‌تونی جواب درست رو پیدا کنی؟\n\n\"I have been at this restaurant ________ two hou",
     "quiz_high: می‌تونی جواب درست رو پیدا کنی؟ جمله زیر کدوم فعل درسته؟ \"I will ___ my phone to ",
     "quiz_high: خیلیا توی استفاده از «قرض گرفتن» و «قرض دادن» اشتباه می‌کنن! واسه اینکه به دوستت",
