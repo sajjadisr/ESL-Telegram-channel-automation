@@ -592,6 +592,12 @@
       "format": "micro_scene",
       "date": "2026-11-07",
       "source": "review"
+    },
+    {
+      "topic": "Body part: head",
+      "format": "vocab_spotlight",
+      "date": "2026-11-08",
+      "source": "fresh"
     }
   ],
   "avoid": [
