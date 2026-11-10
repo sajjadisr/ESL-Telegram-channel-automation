@@ -21,6 +21,11 @@
       "date": "2026-11-09",
       "format": "micro_scene",
       "title": "Daily routine words"
+    },
+    {
+      "date": "2026-11-11",
+      "format": "illustrated_pun",
+      "title": "Let the cat out of the bag"
     }
   ]
 }

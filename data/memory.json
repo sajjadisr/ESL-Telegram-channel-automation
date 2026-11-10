@@ -610,6 +610,12 @@
       "format": "micro_scene",
       "date": "2026-11-09",
       "source": "review"
+    },
+    {
+      "topic": "Let the cat out of the bag",
+      "format": "illustrated_pun",
+      "date": "2026-11-11",
+      "source": "fresh"
     }
   ],
   "avoid": [
