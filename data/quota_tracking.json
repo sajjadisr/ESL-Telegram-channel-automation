@@ -1,7 +1,4 @@
 {
-  "date": "2026-11-12",
-  "gemini_draft_calls": 17,
-  "gemini_smart_calls": 14,
-  "groq_smart_calls": 4,
-  "groq_draft_calls": 1
+  "date": "2026-11-13",
+  "groq_smart_calls": 1
 }
