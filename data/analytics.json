@@ -3978,5 +3978,24 @@
     "views": null,
     "forwards": null,
     "reactions": null
+  },
+  {
+    "date": "2026-11-14",
+    "question": "می‌تونی بگی idiom \"let the cat out of the bag\" یعنی چه؟",
+    "format": "quiz",
+    "is_quiz": true,
+    "vote_count": 1,
+    "rolling_avg_votes_before_this_post": 1.0,
+    "correct_rate": 100.0,
+    "reward_score": 0.75,
+    "experiment_id": "hook_style_v1",
+    "variant_label": "direct_question_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 217,
+    "views": null,
+    "forwards": null
   }
 ]

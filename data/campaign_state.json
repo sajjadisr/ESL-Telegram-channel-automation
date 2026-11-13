@@ -1,36 +1,5 @@
 {
-  "week_start": "2026-11-07",
-  "theme_category": "Grammar",
-  "posts_this_week": [
-    {
-      "date": "2026-11-07",
-      "format": "micro_scene",
-      "title": "Family: mother"
-    },
-    {
-      "date": "2026-11-08",
-      "format": "vocab_spotlight",
-      "title": "Body part: head"
-    },
-    {
-      "date": "2026-11-08",
-      "format": "micro_scene",
-      "title": "Body part: head"
-    },
-    {
-      "date": "2026-11-09",
-      "format": "micro_scene",
-      "title": "Daily routine words"
-    },
-    {
-      "date": "2026-11-11",
-      "format": "illustrated_pun",
-      "title": "Let the cat out of the bag"
-    },
-    {
-      "date": "2026-11-13",
-      "format": "quiz",
-      "title": "کوییز: Let the cat out of the bag, Daily routine words, Body part: head"
-    }
-  ]
+  "week_start": "2026-11-14",
+  "theme_category": "Vocabulary",
+  "posts_this_week": []
 }
