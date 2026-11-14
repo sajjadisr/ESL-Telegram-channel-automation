@@ -622,6 +622,12 @@
       "format": "vocab_spotlight",
       "date": "2026-11-15",
       "source": "fresh"
+    },
+    {
+      "topic": "Body part: hand",
+      "format": "micro_scene",
+      "date": "2026-11-15",
+      "source": "review"
     }
   ],
   "avoid": [
