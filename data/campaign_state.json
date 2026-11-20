@@ -1,36 +1,5 @@
 {
-  "week_start": "2026-11-14",
-  "theme_category": "Vocabulary",
-  "posts_this_week": [
-    {
-      "date": "2026-11-15",
-      "format": "vocab_spotlight",
-      "title": "Body part: hand"
-    },
-    {
-      "date": "2026-11-15",
-      "format": "micro_scene",
-      "title": "Body part: hand"
-    },
-    {
-      "date": "2026-11-16",
-      "format": "micro_scene",
-      "title": "Do vs make (basic uses)"
-    },
-    {
-      "date": "2026-11-17",
-      "format": "spot_mistake",
-      "title": "Look vs see vs watch"
-    },
-    {
-      "date": "2026-11-18",
-      "format": "progress_recap",
-      "title": "Progress recap"
-    },
-    {
-      "date": "2026-11-20",
-      "format": "quiz",
-      "title": "کوییز: Look vs see vs watch, Do vs make (basic uses), Body part: hand"
-    }
-  ]
+  "week_start": "2026-11-21",
+  "theme_category": "Grammar",
+  "posts_this_week": []
 }

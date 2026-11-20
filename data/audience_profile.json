@@ -1,9 +1,9 @@
 {
   "weak_categories": [],
   "strong_categories": [
+    "Common mistakes",
     "Idioms",
-    "Vocabulary",
-    "Common mistakes"
+    "Vocabulary"
   ],
   "quiz_accuracy_history": [
     100.0,
@@ -17,7 +17,8 @@
     100.0,
     100.0,
     100.0,
+    100.0,
     100.0
   ],
-  "avg_quiz_accuracy": 91.7
+  "avg_quiz_accuracy": 92.3
 }

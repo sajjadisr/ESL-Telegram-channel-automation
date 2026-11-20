@@ -4097,5 +4097,24 @@
     "views": null,
     "forwards": null,
     "reactions": null
+  },
+  {
+    "date": "2026-11-21",
+    "question": "خیلیا این دو تا فعل پرکاربرد رو با هم قاطی می‌کنن! برای گفتن «داری اشتباه می‌کنی»، کدوم کلمه برای جای خالی درسته؟\n\n\"You are ________ a mistake.\"",
+    "format": "quiz",
+    "is_quiz": true,
+    "vote_count": 1,
+    "rolling_avg_votes_before_this_post": 1.0,
+    "correct_rate": 100.0,
+    "reward_score": 0.75,
+    "experiment_id": "hook_style_v1",
+    "variant_label": "statement_hook",
+    "extra_channel_delivery": {
+      "eitaa": "delivered",
+      "bale": "delivered"
+    },
+    "message_id": 223,
+    "views": null,
+    "forwards": null
   }
 ]
