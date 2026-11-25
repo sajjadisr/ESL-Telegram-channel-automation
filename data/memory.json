@@ -664,6 +664,12 @@
       "format": "vocab_spotlight",
       "date": "2026-11-25",
       "source": "review"
+    },
+    {
+      "topic": "Say vs tell",
+      "format": "spot_mistake",
+      "date": "2026-11-25",
+      "source": "review"
     }
   ],
   "avoid": [

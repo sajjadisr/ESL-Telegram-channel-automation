@@ -21,6 +21,11 @@
       "date": "2026-11-25",
       "format": "vocab_spotlight",
       "title": "Since vs for"
+    },
+    {
+      "date": "2026-11-25",
+      "format": "spot_mistake",
+      "title": "Say vs tell"
     }
   ]
 }
