@@ -1,41 +1,5 @@
 {
-  "week_start": "2026-11-21",
-  "theme_category": "Grammar",
-  "posts_this_week": [
-    {
-      "date": "2026-11-22",
-      "format": "vocab_spotlight",
-      "title": "Body part: eye"
-    },
-    {
-      "date": "2026-11-24",
-      "format": "spot_mistake",
-      "title": "House vs home"
-    },
-    {
-      "date": "2026-11-25",
-      "format": "illustrated_pun",
-      "title": "Hit the road"
-    },
-    {
-      "date": "2026-11-25",
-      "format": "vocab_spotlight",
-      "title": "Since vs for"
-    },
-    {
-      "date": "2026-11-25",
-      "format": "spot_mistake",
-      "title": "Say vs tell"
-    },
-    {
-      "date": "2026-11-27",
-      "format": "quiz",
-      "title": "کوییز: Say vs tell, Since vs for, Hit the road"
-    },
-    {
-      "date": "2026-11-27",
-      "format": "spot_mistake",
-      "title": "Over the moon"
-    }
-  ]
+  "week_start": "2026-11-28",
+  "theme_category": "Vocabulary",
+  "posts_this_week": []
 }

@@ -120,5 +120,11 @@
     "date": "2026-11-21",
     "source": "auto_poll_harvest",
     "correct_rate": 100.0
+  },
+  {
+    "post_title": "می‌تونی جمله زیر رو درست تکمیل کنی؟ \"We are ready, let's ___ the road.\"",
+    "notes": "نظرسنجی «می‌تونی جمله زیر رو درست تکمیل کنی؟ \"We are ready, let's ___ the road.\"» با 0 رأی بسته شد. توزیع آرا: hit=0، make=0، do=0، say=0",
+    "date": "2026-11-28",
+    "source": "auto_poll_harvest"
   }
 ]
